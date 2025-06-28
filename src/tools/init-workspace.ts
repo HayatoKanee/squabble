@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { WorkspaceManager } from '../workspace/manager.js';
 import fs from 'fs-extra';
 import path from 'path';
-import os from 'os';
 
 const initWorkspaceSchema = z.object({
   projectDescription: z.string().optional().describe('Brief description of the project'),
@@ -36,8 +35,9 @@ export function registerInitWorkspace(
         
         await workspaceManager.saveContext('project', projectMeta);
         
-        // Create Claude settings for background tasks
-        const claudeSettingsDir = path.join(os.homedir(), '.claude');
+        // Create Claude settings for background tasks in project root
+        const projectRoot = process.cwd();
+        const claudeSettingsDir = path.join(projectRoot, '.claude');
         const settingsPath = path.join(claudeSettingsDir, 'settings.local.json');
         
         // Ensure .claude directory exists
@@ -56,11 +56,15 @@ export function registerInitWorkspace(
         }
         
         // Update settings for background tasks if requested
+        if (!settings.env) {
+          settings.env = {};
+        }
+        
         if (args.enableBackgroundTasks) {
-          settings.ENABLE_BACKGROUND_TASKS = "true";
+          settings.env.ENABLE_BACKGROUND_TASKS = "true";
         }
         if (args.forceAutoBackgroundTasks) {
-          settings.FORCE_AUTO_BACKGROUND_TASKS = "true";
+          settings.env.FORCE_AUTO_BACKGROUND_TASKS = "true";
         }
         
         // Write settings

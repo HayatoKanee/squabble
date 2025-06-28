@@ -38,16 +38,15 @@ export class SquabbleMCPServer {
   }
 
   async start() {
-    // Ensure workspace is initialized
-    await this.workspaceManager.initialize();
-
     // Start the MCP server
+    // Note: Workspace is NOT automatically initialized - use init_workspace tool
     await this.server.start({
       transportType: 'stdio'
     });
 
     console.error('Squabble MCP Server started successfully');
     console.error('Available tools for PM:');
+    console.error('- init_workspace: Initialize Squabble workspace and settings');
     console.error('- spawn_agent: Spawn specialist agents (engineer, security, architect)');
     console.error('- send_to_agent: Communicate with spawned agents');
     console.error('- update_tasks: Manage project task list');

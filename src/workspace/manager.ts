@@ -5,11 +5,14 @@ import { Task, Decision, DebateContext } from '../types.js';
 export class WorkspaceManager {
   private workspaceRoot: string;
   private projectRoot: string;
+  private isInitialized: boolean = false;
 
   constructor() {
     // Get the current working directory (project root)
     this.projectRoot = process.cwd();
     this.workspaceRoot = path.join(this.projectRoot, '.squabble');
+    // Check if already initialized
+    this.isInitialized = fs.existsSync(this.workspaceRoot);
   }
 
   async initialize(): Promise<void> {
@@ -33,6 +36,14 @@ export class WorkspaceManager {
     const tasksFile = this.getTasksPath();
     if (!await fs.pathExists(tasksFile)) {
       await this.saveTasks([]);
+    }
+    
+    this.isInitialized = true;
+  }
+  
+  checkInitialized(): void {
+    if (!this.isInitialized) {
+      throw new Error('Squabble workspace not initialized. Run init_workspace first.');
     }
   }
 
