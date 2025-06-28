@@ -1,143 +1,166 @@
-# Squabble - AI Agents That Debate Before They Code
+# Squabble: AI Agents That Debate Before They Code
 
-> "Better to debate for an hour than refactor for a week."
+> "Why did you give me a toy example? I asked for production-ready code!"
 
-Squabble is an MCP (Model Context Protocol) server for Claude that transforms AI-assisted development from hasty code generation to thoughtful engineering. It orchestrates deliberate debates between specialized AI agents, ensuring every line of code is production-ready.
+Sound familiar? If you've used Claude Code or other AI coding assistants, you've probably experienced:
 
-## The Problem We Solve
+- **Hasty MVP implementations** that need complete rewrites
+- **Toy examples** when you needed production code  
+- **Over-engineered solutions** when you wanted a simple POC
+- **Wrong assumptions** about your tech stack or requirements
+- **Mock implementations** that don't actually work
+- **Constant monitoring** to keep the AI on track
 
-Current AI coding assistants rush to implement without understanding requirements, creating toy examples that need complete rewrites. Squabble provides MCP tools that enable you (as PM) to spawn specialist agents, orchestrate debates, and ensure thorough analysis before any code is written.
+Even with plan mode, AI assistants rush to code with minimal thinking. You end up spending more time correcting course than if you'd coded it yourself.
+
+## The Problem
+
+Current AI coding assistants suffer from:
+
+1. **Eager coding syndrome** - They start writing before understanding
+2. **Poor requirement analysis** - Missing critical details and context  
+3. **No self-critique** - First solution becomes the only solution
+4. **Static task management** - Can't adapt as requirements evolve
+5. **Isolation** - No way to get specialized perspectives
+
+You've probably found yourself:
+- Chatting with Gemini/ChatGPT first to clarify requirements
+- Manually inspecting every piece of generated code
+- Repeatedly saying "That's not what I wanted"
+- Watching the AI ignore your carefully written documentation
+
+Tools like claude-task-master help, but they rely on external LLMs that don't know your actual project status and can't have clear conversations with you. The task list remains static and disconnected.
+
+## Enter Squabble
+
+Squabble forces AI to **think before coding** through structured debates between specialized agents:
+
+```
+User Request → PM analyzes → Specialists debate → Consensus reached → THEN code
+```
+
+### How It Works
+
+1. **Product Manager (PM)** - You (Claude) with MCP tools to orchestrate
+2. **Specialist Agents** - Domain experts who challenge assumptions:
+   - **Engineer** - Implementation feasibility and technical approach
+   - **Security** - Vulnerabilities and security considerations  
+   - **Architect** - System design and scalability
+
+Before ANY code is written:
+- Requirements are debated and clarified
+- Multiple approaches are considered
+- Assumptions are explicitly challenged
+- Trade-offs are documented
+- Consensus is reached
+
+### Real Example
+
+**Without Squabble:**
+```
+User: "Add user authentication to my app"
+AI: *Immediately writes basic auth with hardcoded users*
+User: "No, I need JWT with refresh tokens, rate limiting, and OAuth support"
+AI: *Rewrites everything*
+```
+
+**With Squabble:**
+```
+User: "Add user authentication to my app"
+PM: "Let me clarify requirements first..."
+*spawns specialists*
+Security: "What threat model? Session management needs?"
+Architect: "Existing auth systems? Scale requirements?"
+Engineer: "Tech stack constraints? Third-party services?"
+*debate continues until requirements are crystal clear*
+PM: "Based on our analysis, here are three approaches..."
+```
 
 ## Installation
 
-### Quick Install (Recommended)
-
 ```bash
-# Add Squabble to Claude Code
+# Quick install (Recommended)
 claude mcp add squabble "npx -y @squabble/mcp-server"
-```
 
-### Manual Installation
-
-1. Install globally:
-```bash
+# Or install globally
 npm install -g @squabble/mcp-server
+claude mcp add squabble
 ```
 
-2. Add to Claude's MCP configuration:
-```json
-{
-  "mcpServers": {
-    "squabble": {
-      "command": "squabble-mcp"
-    }
-  }
-}
-```
 
-## Usage
-
-Squabble provides MCP tools that you (acting as PM) use to manage specialist agents and orchestrate development debates.
-
-### Available Tools
-
-When Claude Code has Squabble installed, you have access to these tools:
-
-1. **spawn_agent** - Create a specialist agent (engineer, security, architect)
-2. **send_to_agent** - Send messages to spawned agents
-3. **update_tasks** - Manage the project task list (add, delete, modify, block, split)
-4. **save_decision** - Document architectural decisions
-5. **get_agent_status** - Check status of all spawned agents
-6. **debate_status** - Get project debate overview
-
-### Example PM Workflow
-
-As the PM using Claude Code with Squabble:
+## Technical Architecture
 
 ```
-User: "I need to add cryptocurrency payments to our e-commerce site"
-
-You (as PM): Let me understand your requirements better:
-- Which cryptocurrencies?
-- Transaction volume?
-- Compliance requirements?
-
-[After clarification, you spawn specialists using Squabble tools]
-
-spawn_agent:
-  role: "engineer"
-  context: "E-commerce site adding crypto payments for BTC/ETH, 100tx/day"
-  initialQuestion: "What's the best integration approach for crypto payments?"
-
-spawn_agent:
-  role: "security"
-  context: "Crypto payment integration for e-commerce"
-  initialQuestion: "What security concerns should we address?"
-
-[You facilitate debate between specialists]
-
-send_to_agent:
-  role: "engineer"
-  message: "Security raised concerns about key management. Your thoughts?"
-
-[You synthesize findings and update tasks]
-
-update_tasks:
-  modifications: [
-    { type: "ADD", reason: "Security requirement", 
-      details: { title: "Implement secure key management", priority: "high" }}
-  ]
+┌─────────┐     ┌────────────┐     ┌─────────────┐
+│  User   │────▶│ PM (Claude)│────▶│ Specialists │
+└─────────┘     │  with MCP  │     ├─────────────┤
+                └────────────┘     │  Engineer   │
+                      │            │  Security   │
+                      ▼            │  Architect  │
+                ┌──────────┐       └─────────────┘
+                │.squabble/│
+                │workspace │
+                └──────────┘
 ```
 
-## How It Works
-
-1. **You are the PM**: Claude acts as the PM, using Squabble tools to manage specialists
-2. **Tool-Based Orchestration**: MCP tools let you spawn agents, send messages, and manage tasks
-3. **Context Isolation**: Each specialist maintains its own Claude session for pure perspective
-4. **Dynamic Task Management**: Task list evolves based on specialist insights
-5. **Workspace Management**: `.squabble/` folder in your project tracks all decisions
-
-## Project Structure
-
-When initialized, Squabble creates:
+### Project Structure
 
 ```
 your-project/
+├── .claude/
+│   └── settings.local.json  # Background task config
+├── CLAUDE.md               # Context-aware role detection
 └── .squabble/
     ├── workspace/
-    │   ├── requirements/   # Evolving requirement docs
+    │   ├── requirements/   # Evolving requirements
     │   ├── designs/       # Architecture proposals
-    │   ├── decisions/     # Decision records
-    │   ├── tasks/        # Dynamic task list
-    │   └── debates/      # Debate transcripts
-    └── sessions/         # Agent session tracking
+    │   ├── decisions/     # ADRs (Architecture Decision Records)
+    │   ├── tasks/        # Dynamic task tracking
+    │   ├── debates/      # Specialist discussions
+    │   └── context/      # Project metadata
+    ├── sessions/         # Agent conversation tracking
+    └── archive/         # Completed debates
 ```
 
-## Philosophy
+## Why Squabble?
 
-Squabble embodies the principle that the best code is code you don't have to rewrite. By forcing upfront analysis and debate, we catch issues during design rather than in production.
+Because AI should **debate and think** before it codes. Just like a good development team would.
+
+Stop babysitting AI code generation. Let specialists argue it out first, then get it right the first time.
 
 ## Development
 
 ```bash
+# Clone the repository
+git clone https://github.com/squabble-org/squabble.git
+cd squabble
+
 # Install dependencies
 npm install
 
-# Run in development mode
-npm run dev
-
-# Build for production
+# Build
 npm run build
+
+# Run tests
+npm test
 ```
 
 ## Contributing
 
-We welcome contributions! Please ensure any PR follows our philosophy of thoughtful analysis before implementation.
+We welcome contributions! The goal is simple: make AI think harder before coding.
+
+Areas we'd love help with:
+- Additional specialist roles (DevOps, UX, Data)
+- Integration with more AI platforms
+- Better debate facilitation strategies
+- Task management improvements
 
 ## License
 
-MIT
+MIT - Because good ideas should be free to improve
 
 ---
 
-Built with the belief that AI assistants should think before they code.
+*Built by developers tired of "MVP-first, think-later" AI coding*
+
+**Remember:** The best code is code you don't have to rewrite. Let them squabble first.
