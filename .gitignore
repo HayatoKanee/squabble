@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.squabble/
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.npm/
+.yarn/
+.pnp.*
