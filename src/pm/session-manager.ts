@@ -11,15 +11,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // MCP configuration for PM server
-// In development, use local path. In production (npm), use npx
-const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 const PM_MCP_CONFIG = {
   mcpServers: {
     'squabble-pm': {
-      command: isDevelopment ? 'node' : 'npx',
-      args: isDevelopment 
-        ? [path.join(__dirname, '../../../dist/mcp-server/server.js'), '--role', 'pm']
-        : ['-y', 'squabble-mcp', '--role', 'pm']
+      command: 'npx',
+      args: ['-y', 'squabble-mcp', '--role', 'pm']
     }
   }
 };
