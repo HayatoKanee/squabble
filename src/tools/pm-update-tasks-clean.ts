@@ -1,7 +1,6 @@
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { TaskManager } from '../tasks/task-manager.js';
-import { ModeManager } from '../modes/mode-manager.js';
 
 const taskModificationSchema = z.object({
   type: z.enum(['ADD', 'DELETE', 'MODIFY', 'BLOCK', 'SPLIT', 'MERGE']),
@@ -16,21 +15,17 @@ const pmUpdateTasksSchema = z.object({
 
 export function registerPMUpdateTasks(
   server: FastMCP,
-  taskManager: TaskManager,
-  modeManager: ModeManager
+  taskManager: TaskManager
 ) {
   server.addTool({
     name: 'pm_update_tasks',
-    description: 'PM ONLY: Update the project task list with modifications (add, delete, modify, block, split, merge)',
+    description: 'Update the project task list with modifications (add, delete, modify, block, split, merge)',
     parameters: pmUpdateTasksSchema,
     execute: async (args) => {
       const { modifications } = args;
 
       try {
-        // Check permissions
-        if (!modeManager.hasPermission('pm_update_tasks')) {
-          return `Error: ${modeManager.getPermissionError('pm_update_tasks')}`;
-        }
+        // No permission check needed - this entire server is PM-only
         
         // Apply all modifications with timestamps
         await taskManager.applyModifications(

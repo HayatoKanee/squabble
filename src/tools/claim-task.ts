@@ -88,10 +88,15 @@ export function registerClaimTask(
         if (task.description) {
           result += `Description: ${task.description}\n`;
         }
-        result += `\nTip: Remember to submit_for_review when implementation is complete`;
+        result += `\n📋 Next Steps:\n`;
+        result += `1. Use consult_pm to discuss your implementation approach\n`;
+        result += `2. Ask the PM about any unclear requirements or edge cases\n`;
+        result += `3. Implement the solution\n`;
+        result += `4. Use submit_for_review when complete\n`;
+        result += `\n💡 Tip: The PM is your partner - consult early and often for better outcomes!`;
         
         if (otherInProgress.length > 0) {
-          result += `\n\nWarning: ${otherInProgress.length} other task(s) also in progress. Consider focusing on one task at a time.`;
+          result += `\n\n⚠️ Warning: ${otherInProgress.length} other task(s) also in progress. Consider focusing on one task at a time.`;
         }
         
         return result;
