@@ -1,5 +1,26 @@
 # Squabble: AI Agents That Debate Before They Code
 
+> Engineer-driven development with critical-thinking PM collaboration
+
+## Installation
+
+```bash
+# Using npm
+npm install -g squabble-mcp
+
+# Or using Claude Code
+claude mcp add npm squabble-mcp
+```
+
+## Quick Start
+
+```bash
+# In Claude Code, after installation:
+init_workspace
+```
+
+---
+
 > "Why did you give me a toy example? I asked for production-ready code!"
 
 Sound familiar? If you've used Claude Code or other AI coding assistants, you've probably experienced:

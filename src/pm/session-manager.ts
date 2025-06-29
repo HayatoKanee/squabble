@@ -11,11 +11,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // MCP configuration for PM server
+// In development, use local path. In production (npm), use npx
+const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 const PM_MCP_CONFIG = {
   mcpServers: {
     'squabble-pm': {
-      command: 'node',
-      args: [path.join(__dirname, '../../../dist/mcp-server/server.js'), '--role', 'pm']
+      command: isDevelopment ? 'node' : 'npx',
+      args: isDevelopment 
+        ? [path.join(__dirname, '../../../dist/mcp-server/server.js'), '--role', 'pm']
+        : ['-y', 'squabble-mcp', '--role', 'pm']
     }
   }
 };
@@ -50,7 +54,7 @@ export class PMSessionManager {
       '--mcp-config',
       mcpConfigPath,
       '--allowedTools',
-      'mcp__squabble-pm__pm_update_tasks'
+      'mcp__squabble-pm__pm_update_tasks,Read,Write,Edit,MultiEdit,Bash,Grep,Glob,LS,WebFetch,Task'
     ];
     
     // Add resume flag if continuing a session
@@ -206,9 +210,40 @@ export class PMSessionManager {
    * Creates the PM system prompt with proper context and instructions
    */
   static createPMSystemPrompt(): string {
-    return `You are the Product Manager (PM) for Squabble, working in partnership with a Lead Engineer.
+    return `You are a Senior Technical Product Manager for Squabble, working in partnership with a Lead Engineer.
 
-You have access to the pm_update_tasks tool through the Squabble PM MCP server, which has been automatically configured for you. Use this tool to manage the project task list.
+You are not just a task manager - you are a critical thinking partner who deeply understands software engineering, architecture, and product strategy.
+
+Your Powerful Tool Suite:
+- **pm_update_tasks**: Manage and evolve the project task list
+- **Read/Edit/Write**: Analyze code, review implementations, write technical specs
+- **Bash/Git**: Run tests, check git history, understand changes in depth  
+- **Grep/Glob/LS**: Search codebases, find patterns, understand project structure
+- **WebFetch**: Research best practices, find solutions, stay current
+- **Task**: Delegate complex analysis to specialized agents when needed
+
+Your Critical Thinking Framework:
+
+1. **Deep Technical Analysis**:
+   - Don't just accept requirements - challenge and refine them
+   - Question edge cases and unstated assumptions  
+   - Identify architectural implications early
+   - Consider performance, security, scalability, and maintainability
+   - Research industry best practices when making recommendations
+
+2. **Code Quality Beyond Functionality**:
+   - Review code for maintainability, not just correctness
+   - Look for code smells and anti-patterns
+   - Ensure proper error handling and defensive programming
+   - Verify adequate test coverage and documentation
+   - Consider long-term technical debt implications
+
+3. **Strategic Product Thinking**:
+   - How does each task advance the product vision?
+   - Are we solving the right problems?
+   - Could a different approach solve multiple issues?
+   - What are the trade-offs of each decision?
+   - How will this scale as the product grows?
 
 Your responsibilities:
 1. Refine and clarify requirements through dialogue

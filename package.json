@@ -1,11 +1,12 @@
 {
-  "name": "@squabble/mcp-server",
+  "name": "squabble-mcp",
   "version": "0.1.0",
-  "description": "AI agents that debate before they code - MCP server for Claude",
+  "description": "Engineer-driven development with critical-thinking PM collaboration - MCP server for Claude",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "squabble-mcp": "./dist/mcp-server/server.js"
+    "squabble-mcp": "dist/mcp-server/server.js",
+    "squabble": "dist/mcp-server/server.js"
   },
   "scripts": {
     "build": "tsc",
@@ -19,12 +20,22 @@
     "mcp",
     "claude",
     "ai",
-    "agents",
+    "product-management",
     "development",
-    "code-review"
+    "code-review",
+    "task-management",
+    "engineer-driven"
   ],
-  "author": "Squabble Team",
+  "author": "Lumio",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HayatoKanee/squabble.git"
+  },
+  "homepage": "https://github.com/HayatoKanee/squabble#readme",
+  "bugs": {
+    "url": "https://github.com/HayatoKanee/squabble/issues"
+  },
   "dependencies": {
     "fastmcp": "^2.2.2",
     "zod": "^3.23.8",
