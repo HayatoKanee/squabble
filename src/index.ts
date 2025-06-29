@@ -2,6 +2,7 @@ import { FastMCP } from 'fastmcp';
 import { registerAllTools } from './tools/index.js';
 import { WorkspaceManager } from './workspace/manager.js';
 import { TaskManager } from './tasks/task-manager.js';
+import { ModeManager } from './modes/mode-manager.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -14,6 +15,7 @@ export class SquabbleMCPServer {
   private server: FastMCP;
   private workspaceManager: WorkspaceManager;
   private taskManager: TaskManager;
+  private modeManager: ModeManager;
 
   constructor() {
     this.server = new FastMCP({
@@ -22,6 +24,7 @@ export class SquabbleMCPServer {
     });
 
     // Initialize managers
+    this.modeManager = new ModeManager();
     this.workspaceManager = new WorkspaceManager();
     this.taskManager = new TaskManager(this.workspaceManager);
 
@@ -29,7 +32,8 @@ export class SquabbleMCPServer {
     registerAllTools(
       this.server,
       this.workspaceManager,
-      this.taskManager
+      this.taskManager,
+      this.modeManager
     );
   }
 
@@ -43,7 +47,7 @@ export class SquabbleMCPServer {
     console.error('Squabble MCP Server started successfully');
     console.error('Available tools for sequential workflow:');
     console.error('- init_workspace: Initialize Squabble workspace');
-    console.error('- update_tasks: Manage project task list');
+    console.error('- apply_modifications: Apply approved task list modifications');
     console.error('- save_decision: Document architectural decisions');
     console.error('');
     console.error('Coming soon:');

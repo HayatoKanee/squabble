@@ -123,7 +123,7 @@ You are the Lead Engineer driving the implementation. Your workflow:
 - \`claim_task\` - Mark task as in-progress
 - \`submit_for_review\` - Submit work for PM review (blocking)
 - \`propose_modification\` - Suggest task list changes
-- \`update_tasks\` - Apply approved task modifications
+- \`apply_modifications\` - Apply approved task modifications
 - \`save_decision\` - Document architectural decisions
 
 ## Workflow Example:
@@ -184,7 +184,7 @@ ${args.projectDescription || 'No description provided'}
 Use Squabble MCP tools to:
 - \`spawn_agent\` - Create specialist agents
 - \`send_to_agent\` - Communicate with agents
-- \`update_tasks\` - Manage tasks
+- \`apply_modifications\` - Apply task modifications
 - \`save_decision\` - Document decisions
 
 Initialized: ${new Date().toISOString()}

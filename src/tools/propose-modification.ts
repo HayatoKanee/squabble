@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
-import { TaskModification } from '../types.js';
 
 const taskModificationProposalSchema = z.object({
   type: z.enum(['ADD', 'DELETE', 'MODIFY', 'BLOCK', 'SPLIT', 'MERGE']),
@@ -78,7 +77,7 @@ export function registerProposeModification(
         
         // Consult PM for approval
         console.error('[Squabble] Proposing task modifications to PM...');
-        const { response: pmResponse, sessionId } = await pmSessionManager.consultPM(
+        const { response: pmResponse } = await pmSessionManager.consultPM(
           proposalPrompt,
           PMSessionManager.createPMSystemPrompt(),
           currentSession?.currentSessionId
@@ -88,37 +87,26 @@ export function registerProposeModification(
         const pmDecision = parsePMDecision(pmResponse, modifications);
         
         if (pmDecision.approved) {
-          // Apply approved modifications
-          const approvedMods: TaskModification[] = pmDecision.approvedModifications.map((mod: any) => ({
-            ...mod,
-            timestamp: new Date()
-          }));
-          
-          await taskManager.applyModifications(approvedMods);
-          
-          // Get updated task list
-          const updatedTasks = await taskManager.getTasks();
-          const stats = {
-            total: updatedTasks.length,
-            pending: updatedTasks.filter(t => t.status === 'pending').length,
-            inProgress: updatedTasks.filter(t => t.status === 'in-progress').length,
-            review: updatedTasks.filter(t => t.status === 'review').length,
-            done: updatedTasks.filter(t => t.status === 'done').length
-          };
-          
-          let result = 'PM approved task modifications\n\n';
+          // PM approved the modifications
+          let result = 'PM approved your proposed modifications!\n\n';
           result += `PM Feedback: ${pmDecision.feedback}\n\n`;
-          result += `Applied ${approvedMods.length} modification(s)\n\n`;
-          result += 'Updated Task Stats:\n';
-          result += `- Total: ${stats.total}\n`;
-          result += `- Pending: ${stats.pending}\n`;
-          result += `- In Progress: ${stats.inProgress}\n`;
-          result += `- In Review: ${stats.review}\n`;
-          result += `- Done: ${stats.done}`;
+          result += `Note: The PM will now apply these modifications using pm_update_tasks.\n`;
+          result += `You should wait for the PM to update the task list, then use get_next_task to see the changes.`;
+          
           if (pmDecision.additionalSuggestions && pmDecision.additionalSuggestions.length > 0) {
-            result += '\n\nPM Suggestions:\n';
+            result += '\n\nPM Additional Suggestions:\n';
             result += pmDecision.additionalSuggestions.map((s: string) => `- ${s}`).join('\n');
           }
+          
+          // Save the approved modifications for PM reference
+          await workspaceManager.saveContext('approved-modifications', {
+            timestamp: new Date(),
+            modifications: pmDecision.approvedModifications,
+            pmFeedback: pmDecision.feedback,
+            proposedBy: 'engineer',
+            reason
+          });
+          
           return result;
         } else {
           let result = 'PM did not approve modifications\n\n';

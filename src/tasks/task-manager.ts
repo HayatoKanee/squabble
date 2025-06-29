@@ -44,8 +44,11 @@ export class TaskManager {
   }
 
   private async addTask(tasks: Task[], mod: TaskModification): Promise<Task[]> {
+    // Get the next sequential ID
+    const nextId = await this.getNextTaskId();
+    
     const newTask: Task = {
-      id: `task-${uuid().substring(0, 8)}`,
+      id: nextId,
       title: mod.details.title,
       description: mod.details.description,
       status: 'pending',
@@ -58,6 +61,23 @@ export class TaskManager {
     };
 
     return [...tasks, newTask];
+  }
+
+  private async getNextTaskId(): Promise<string> {
+    // Get current counter from workspace context
+    let counter = await this.workspaceManager.getContext('task-counter');
+    if (!counter || typeof counter !== 'number') {
+      counter = 0;
+    }
+    
+    // Increment counter
+    counter++;
+    
+    // Save updated counter
+    await this.workspaceManager.saveContext('task-counter', counter);
+    
+    // Return formatted ID (e.g., SQBL-1, SQBL-2, etc.)
+    return `SQBL-${counter}`;
   }
 
   private async deleteTask(tasks: Task[], mod: TaskModification): Promise<Task[]> {
@@ -91,6 +111,7 @@ export class TaskManager {
           description: mod.details.newDescription || task.description,
           title: mod.details.newTitle || task.title,
           priority: mod.details.newPriority || task.priority,
+          status: mod.details.status || task.status,
           modificationHistory: [...task.modificationHistory, mod]
         };
       }
@@ -127,7 +148,7 @@ export class TaskManager {
 
     // Add subtasks
     const subtasks: Task[] = mod.details.subtasks.map((title: string, index: number) => ({
-      id: `${mod.taskId}-${index + 1}`,
+      id: `${mod.taskId}.${index + 1}`,  // Use dot notation for subtasks (e.g., SQBL-1.1, SQBL-1.2)
       title,
       status: 'pending',
       priority: originalTask.priority,
