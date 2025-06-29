@@ -1,29 +1,29 @@
 import { FastMCP } from 'fastmcp';
 import { registerInitWorkspace } from './init-workspace.js';
-import { registerSpawnAgent } from './spawn-agent.js';
-import { registerSendToAgent } from './send-to-agent.js';
 import { registerUpdateTasks } from './update-tasks.js';
 import { registerSaveDecision } from './save-decision.js';
-import { registerGetAgentStatus } from './get-agent-status.js';
-import { registerDebateStatus } from './debate-status.js';
+import { registerConsultPM } from './consult-pm.js';
+import { registerGetNextTask } from './get-next-task.js';
+import { registerClaimTask } from './claim-task.js';
+import { registerSubmitForReview } from './submit-for-review.js';
+import { registerProposeModification } from './propose-modification.js';
 import { WorkspaceManager } from '../workspace/manager.js';
-import { SessionManager } from '../agents/session-manager.js';
 import { TaskManager } from '../tasks/task-manager.js';
 
 export function registerAllTools(
   server: FastMCP,
   workspaceManager: WorkspaceManager,
-  sessionManager: SessionManager,
   taskManager: TaskManager
 ) {
-  // Register initialization tool first
+  // Register core tools for sequential workflow
   registerInitWorkspace(server, workspaceManager);
-  
-  // Register all other tools that the PM can use
-  registerSpawnAgent(server, sessionManager, workspaceManager);
-  registerSendToAgent(server, sessionManager);
   registerUpdateTasks(server, taskManager);
   registerSaveDecision(server, workspaceManager);
-  registerGetAgentStatus(server, sessionManager);
-  registerDebateStatus(server, workspaceManager);
+  
+  // Register engineer-PM workflow tools
+  registerConsultPM(server, workspaceManager);
+  registerGetNextTask(server, taskManager);
+  registerClaimTask(server, taskManager, workspaceManager);
+  registerSubmitForReview(server, taskManager, workspaceManager);
+  registerProposeModification(server, taskManager, workspaceManager);
 }

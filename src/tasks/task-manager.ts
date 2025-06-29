@@ -51,8 +51,10 @@ export class TaskManager {
       status: 'pending',
       priority: mod.details.priority || 'medium',
       dependencies: mod.details.dependencies || [],
-      createdBy: mod.proposedBy,
-      modificationHistory: [mod]
+      modificationHistory: [{
+        ...mod,
+        timestamp: new Date()
+      }]
     };
 
     return [...tasks, newTask];
@@ -103,9 +105,11 @@ export class TaskManager {
       if (task.id === mod.taskId) {
         return {
           ...task,
-          status: 'blocked',
           blockedBy: mod.details.blockedBy,
-          modificationHistory: [...task.modificationHistory, mod]
+          modificationHistory: [...task.modificationHistory, {
+            ...mod,
+            timestamp: new Date()
+          }]
         };
       }
       return task;
@@ -128,7 +132,6 @@ export class TaskManager {
       status: 'pending',
       priority: originalTask.priority,
       dependencies: index === 0 ? originalTask.dependencies : [`${mod.taskId}-${index}`],
-      createdBy: mod.proposedBy,
       modificationHistory: [{
         ...mod,
         reason: `Split from ${originalTask.title}`
@@ -151,7 +154,7 @@ export class TaskManager {
     const availableTasks = tasks
       .filter(t => t.status === 'pending' && !t.blockedBy)
       .filter(t => t.dependencies.every(dep => 
-        tasks.find(dt => dt.id === dep)?.status === 'completed'
+        tasks.find(dt => dt.id === dep)?.status === 'done'
       ))
       .sort((a, b) => {
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };

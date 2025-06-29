@@ -2,16 +2,17 @@
 
 ## Executive Summary
 
-Squabble is an MCP (Model Context Protocol) server for Claude Code that transforms AI-assisted development from hasty code generation to thoughtful engineering. It orchestrates deliberate debates between specialized AI agents, ensuring every line of code is production-ready through rigorous pre-implementation analysis.
+Squabble is an MCP (Model Context Protocol) server for Claude Code that transforms AI-assisted development from hasty code generation to thoughtful engineering. It empowers the Lead Engineer (Claude Code) with mandatory PM collaboration and on-demand specialist advisors, ensuring every line of code is production-ready through continuous dialogue and iterative refinement.
 
 ## Product Overview
 
 ### What Squabble Does
-- Spawns multiple specialized Claude agents (PM, Engineer, Security, Architect)
-- Facilitates structured debates about requirements and design before coding
-- Maintains a living task list that evolves based on discoveries
-- Provides human-in-the-loop intervention points
-- Ensures production-ready code through adversarial review
+- Empowers the Lead Engineer (Claude Code) with intelligent collaboration tools
+- Mandates PM partnership for requirements analysis and task management
+- Provides on-demand specialist advisors (Security, Architect, DevOps)
+- Maintains a dynamic task list through engineer-PM dialogue
+- Enables direct user clarification when engineer or PM needs it
+- Ensures production-ready code through continuous review and iteration
 
 ### What Squabble Prevents
 - Building the wrong solution due to unclear requirements
@@ -23,15 +24,15 @@ Squabble is an MCP (Model Context Protocol) server for Claude Code that transfor
 ## Core User Flow
 
 ```
-1. User runs: squabble init "Build crypto payment system"
-2. PM agent spawns and interrogates requirements
-3. User provides clarifications to PM
-4. PM spawns relevant specialists (Engineer, Security, etc.)
-5. PM facilitates debate between specialists
-6. PM synthesizes findings and presents to user
-7. User approves approach through PM
-8. PM maintains dynamic task list throughout
-9. Implementation proceeds with PM oversight
+1. User provides requirement: "Build crypto payment system"
+2. Lead Engineer (Claude) interprets and consults PM
+3. Engineer-PM dialogue refines requirements and creates tasks
+4. Engineer may ask user for clarification directly
+5. Engineer implements while updating PM on progress
+6. PM reviews code and manages evolving task list
+7. Engineer consults specialists when needed (via PM approval)
+8. Continuous engineer-PM collaboration until completion
+9. PM validates before engineer reports back to user
 ```
 
 ## Technical Architecture
@@ -39,199 +40,223 @@ Squabble is an MCP (Model Context Protocol) server for Claude Code that transfor
 ### System Components
 
 #### 1. MCP Server
-- Entry point for Claude Code integration
-- Single tool interface: `squabble_session`
-- Routes all requests to PM agent
-- Maintains session state
+- Provides collaboration tools for Lead Engineer (Claude Code)
+- Multiple tools for PM dialogue, specialist consultation, task management
+- Maintains conversation state and task history
+- Enables real-time engineer-PM collaboration
 
-#### 2. Product Manager (PM) Agent - The Orchestrator
-- **ONLY agent that interacts with users**
-- **ONLY agent that can spawn other specialists**
-- Manages all agent lifecycles
+#### 2. Lead Engineer (Claude Code Instance)
+- **Primary implementer and user interface**
+- Interprets abstract requirements
+- Drives implementation with mandatory PM collaboration
+- Can request user clarification when needed
+- Consults specialists through PM
+- Owns the implementation while PM owns task management
+
+#### 3. Product Manager (PM) Agent - Mandatory Partner
+- **Required collaborator for all implementations**
+- Refines requirements through dialogue with engineer
 - Owns and maintains the dynamic task list
-- Synthesizes specialist feedback for users
-- Makes final decisions on approach
+- Reviews code and provides quality gates
+- Approves specialist consultations
+- Validates work before user delivery
 
-#### 3. Specialist Agents (Spawned by PM only)
-- **Engineer**: Technical feasibility and implementation
-- **Security**: Vulnerability assessment and compliance
-- **Architect**: System design and scalability
-- Cannot spawn other agents (prevents recursion)
-- Cannot interact with users directly
-- Report only to PM
+#### 4. Specialist Advisors (On-Demand Consultation)
+- **Security**: Vulnerability assessment and compliance guidance
+- **Architect**: System design and scalability advice
+- **DevOps**: Deployment and operations considerations
+- Provide focused expertise when requested
+- Consulted through engineer-PM collaboration
+- Advisory role only - no implementation
 
-#### 4. Session Management
+#### 5. Session Management
 - Each `claude -p` creates initial session
 - Each `--resume` creates new session file with full history
 - Session branching provides natural version control
 - Complete audit trail of all agent interactions
 
-#### 5. Dynamic Task List
-- Living document owned by PM
-- PM modifies based on specialist input
-- Maintains modification history with rationale
-- Enforces dependencies and blockers
+#### 6. Dynamic Task List
+- Living document co-managed through engineer-PM dialogue
+- Engineer proposes changes based on discoveries
+- PM approves and maintains task integrity
+- Continuous evolution during implementation
+- Full history of modifications with rationale
 
-#### 6. Shared Workspace (.squabble folder)
+#### 7. Shared Workspace (.squabble folder)
 - Structured file system for agent communication
 - Version-controlled decision history
 - Project context and discovered requirements
 - Debate transcripts and rationale
 
-#### 7. Human Interface
-- All interaction through PM agent
-- PM requests clarification when needed
-- PM presents synthesized team recommendations
-- Human approvals go through PM
+#### 8. Human Interface
+- Primary interaction through Lead Engineer
+- Engineer or PM can request user clarification
+- Engineer implements with continuous PM review
+- Final delivery after PM validation
 
 ## Implementation Requirements
 
-### Phase 1: Core Infrastructure (Week 1-2)
+### Phase 1: Simplified Core Infrastructure
 
-#### 1.1 MCP Server Setup
+#### 1.1 MCP Server with Sequential Tools
 ```
 squabble/
 ├── package.json
 ├── src/
-│   ├── mcp-server.ts      # MCP protocol implementation
-│   ├── tools/             # MCP tool definitions
-│   └── index.ts           # Server entry point
+│   ├── index.ts           # FastMCP server entry
+│   ├── tools/             # Sequential workflow tools
+│   │   ├── consult-pm.ts
+│   │   ├── get-next-task.ts
+│   │   ├── claim-task.ts
+│   │   ├── submit-for-review.ts
+│   │   └── propose-modification.ts
+│   └── types.ts           # Simplified types
 ```
 
 **Deliverables:**
-- Basic MCP server responding to tool calls
-- `squabble_session` tool with start/status/intervene actions
+- FastMCP server with sequential tool set
+- Single engineer workflow model
+- PM collaboration tools
 - Error handling and logging
-- Configuration management
 
-#### 1.2 Agent Management System
-```
-src/
-├── agents/
-│   ├── orchestrator.ts    # Agent lifecycle management
-│   ├── session-manager.ts # UUID persistence
-│   ├── prompts/          # System prompts per role
-│   └── types.ts          # Agent interfaces
-```
-
-**Deliverables:**
-- Agent spawning with Claude CLI integration
-- Session UUID management and persistence
-- Inter-agent communication protocol
-- Agent health monitoring
-
-### Phase 2: PM-Centric Orchestration (Week 3-4)
-
-#### 2.1 PM Agent Implementation
-```
-src/
-├── pm/
-│   ├── orchestrator.ts   # PM main logic
-│   ├── decision-parser.ts # Parse PM decisions
-│   ├── specialist-manager.ts # Spawn/manage specialists
-│   └── synthesis.ts      # Synthesize specialist input
-```
-
-**Deliverables:**
-- PM agent with user interaction capability
-- Specialist spawning logic (PM-only)
-- Decision parsing from PM responses
-- User-friendly synthesis of technical debates
-
-#### 2.2 Dynamic Task Management
+#### 1.2 Task Management System
 ```
 src/
 ├── tasks/
-│   ├── task-list.ts      # Living task list
-│   ├── modifications.ts  # Modification protocol
-│   ├── validation.ts     # Change validation
-│   └── persistence.ts    # Task state storage
+│   ├── task-manager.ts    # Core task operations
+│   ├── dependencies.ts    # Strict dependency checking
+│   ├── status.ts         # Status transitions
+│   └── types.ts          # Task interfaces
 ```
 
 **Deliverables:**
-- Task CRUD operations with history
-- Agent-driven modification protocol
-- Dependency and blocker management
-- Task state visualization
+- Task structure with status: pending → in-progress → review → done
+- Dependency validation and blocking
+- Task modification proposals
+- Simple file-based persistence
 
-### Phase 3: Workspace & Integration (Week 5-6)
+### Phase 2: Engineer-PM Sequential Workflow
 
-#### 3.1 Shared Workspace
+#### 2.1 PM Collaboration Tools
+```
+src/
+├── pm/
+│   ├── review-manager.ts  # Blocking review workflow
+│   ├── task-evolution.ts  # Dynamic task modifications
+│   ├── prompts.ts        # PM system prompts
+│   └── feedback.ts       # Structured feedback
+```
+
+**Deliverables:**
+- Blocking submit_for_review implementation
+- PM code review with git diff support
+- Task modification approval workflow
+- Feedback and iteration cycle
+
+#### 2.2 Sequential Communication
+```
+src/
+├── workflow/
+│   ├── sequential.ts     # Turn-based engineer-PM flow
+│   ├── context.ts       # Maintain conversation context
+│   ├── decisions.ts     # Decision recording
+│   └── clarifications.ts # User question handling
+```
+
+**Deliverables:**
+- Clear engineer → PM → engineer flow
+- Context preservation between turns
+- User clarification mechanism
+- Decision documentation
+
+### Phase 3: Specialist Integration & Polish
+
+#### 3.1 Specialist Advisors
+```
+src/
+├── specialists/
+│   ├── advisor.ts       # Base specialist consultation
+│   ├── security.ts      # Security advisor
+│   ├── architect.ts     # Architecture advisor
+│   └── prompts/         # Specialist prompts
+```
+
+**Deliverables:**
+- Simple specialist consultation through PM
+- Focused Q&A model (not debates)
+- Advisory-only responses
+- PM synthesis of specialist input
+
+#### 3.2 Workspace & State
 ```
 .squabble/
 ├── workspace/
-│   ├── requirements/     # Evolving requirements
-│   ├── designs/         # Architecture proposals
-│   ├── decisions/       # ADRs and rationale
-│   ├── tasks/          # Current task state
-│   ├── debates/        # Active discussions
-│   └── context/        # Project knowledge
+│   ├── tasks.json       # Current task list
+│   ├── reviews/         # Review requests/responses
+│   ├── decisions/       # Documented decisions
+│   └── context/         # Project context
 ```
 
 **Deliverables:**
-- Workspace initialization on `squabble init`
-- File-based agent communication
-- Conflict resolution mechanisms
-- Workspace state management
-
-#### 3.2 Human Integration Layer
-```
-src/
-├── human/
-│   ├── interface.ts     # Human interaction points
-│   ├── approvals.ts     # Approval workflows
-│   ├── escalation.ts    # Escalation rules
-│   └── ui/             # Terminal UI components
-```
-
-**Deliverables:**
-- Interactive prompts for clarification
-- Approval request system
-- Real-time debate monitoring
-- Manual intervention capabilities
+- Minimal workspace structure
+- Review request/response storage
+- Decision documentation
+- State persistence
 
 ## Agent Specifications
 
-### Product Manager (PM) - The Orchestrator
-- **Role**: Single point of contact for users, orchestrates all specialists
-- **Unique Abilities**: 
-  - Only agent that interacts with users
-  - Only agent that can spawn other agents
-  - Owns and modifies the dynamic task list
-  - Synthesizes all specialist feedback
-- **Authority**: Final decision maker, can override specialist recommendations
-- **Communication**: Direct with user, facilitates all specialist debates
-- **Output**: Synthesized recommendations, updated task lists, clear action plans
+### Lead Engineer (Claude Code Instance) - The Implementer
+- **Role**: Primary developer who interprets requirements and implements solutions
+- **Responsibilities**: 
+  - Direct interaction with users
+  - Interpret abstract requirements into concrete implementations
+  - Maintain active dialogue with PM throughout development
+  - Request specialist consultations when needed
+  - Drive implementation while incorporating feedback
+- **Authority**: Implementation decisions, can challenge PM suggestions, request user clarification
+- **Communication**: Primary user interface, continuous PM collaboration, specialist consultations
+- **Output**: Working code, implementation decisions, progress updates
 
-### Security Engineer (Specialist)
-- **Role**: Identify vulnerabilities before implementation
-- **Limitations**: 
-  - Cannot interact with users
-  - Cannot spawn other agents
-  - Reports only to PM
-- **Authority**: Recommend security requirements, flag risks
-- **Triggers**: Spawned by PM for auth systems, data handling, external integrations
-- **Output**: Threat models, security requirements to PM
+### Product Manager (PM) - Mandatory Collaborator
+- **Role**: Requirements analyst, task manager, and quality gatekeeper
+- **Responsibilities**: 
+  - Refine requirements through engineer dialogue
+  - Own and maintain the dynamic task list
+  - Review code and provide quality feedback
+  - Approve specialist consultations
+  - Validate work before user delivery
+- **Authority**: Task list ownership, quality gates, specialist access control
+- **Communication**: Active dialogue with engineer, coordinate specialist input
+- **Output**: Refined requirements, task updates, code reviews, quality assessments
+
+### Security Advisor (Specialist)
+- **Role**: Provide security expertise and vulnerability assessment
+- **Consultation Model**: 
+  - Called by engineer through PM when security concerns arise
+  - Provides focused advice on specific security questions
+  - Reviews security-critical code sections
+- **Authority**: Advisory only - recommendations, not mandates
+- **Triggers**: Auth systems, data handling, external APIs, encryption needs
+- **Output**: Security recommendations, threat analysis, compliance guidance
 
 ### System Architect (Specialist)
-- **Role**: Design scalable, maintainable solutions
-- **Limitations**: 
-  - Cannot interact with users
-  - Cannot spawn other agents
-  - Reports only to PM
-- **Authority**: Propose architectures, identify technical debt
-- **Triggers**: Spawned by PM for system design decisions
-- **Output**: Architecture proposals, tradeoff analysis to PM
+- **Role**: Advise on system design and architectural patterns
+- **Consultation Model**: 
+  - Engaged for architectural decisions and scalability concerns
+  - Provides patterns and best practices
+  - Reviews system design proposals
+- **Authority**: Advisory on design patterns, scalability, maintainability
+- **Triggers**: New system components, integration points, performance concerns
+- **Output**: Architecture recommendations, pattern suggestions, scalability analysis
 
-### Senior Engineer (Specialist)
-- **Role**: Implementation feasibility and best practices
-- **Limitations**: 
-  - Cannot interact with users
-  - Cannot spawn other agents
-  - Reports only to PM
-- **Authority**: Assess technical feasibility, propose implementations
-- **Triggers**: Spawned by PM for implementation planning
-- **Output**: Technical assessments, implementation approaches to PM
+### DevOps Advisor (Specialist)
+- **Role**: Guide deployment, operations, and infrastructure decisions
+- **Consultation Model**: 
+  - Consulted for deployment strategies and operational concerns
+  - Advises on CI/CD, monitoring, and infrastructure
+- **Authority**: Advisory on deployment and operational best practices
+- **Triggers**: Deployment setup, monitoring needs, infrastructure decisions
+- **Output**: Deployment strategies, operational recommendations, infrastructure guidance
 
 ## Success Criteria
 
@@ -271,87 +296,148 @@ Following our own philosophy, Squabble will be built using Squabble principles:
 ```yaml
 tasks:
   - id: 1
-    title: "Set up basic MCP server structure"
+    title: "Clean up existing codebase"
+    description: "Remove complex orchestration and multi-agent code"
     priority: HIGH
     status: READY
+    details: "Remove PM orchestrator, agent spawning, complex session management"
     
   - id: 2  
-    title: "Implement squabble init command"
+    title: "Create simplified task structure"
+    description: "Implement basic task management with status flow"
     priority: HIGH
     dependencies: [1]
+    details: "Task types, status transitions (pending→in-progress→review→done), dependency checking"
     
   - id: 3
-    title: "Create agent spawning mechanism"
+    title: "Build core sequential tools"
+    description: "Implement engineer-PM collaboration tools"
     priority: HIGH
-    dependencies: [1]
+    dependencies: [2]
+    subtasks:
+      - consult_pm_requirements tool
+      - get_next_task with dependency checking
+      - claim_task (status update)
+      - submit_for_review (blocking)
     
   - id: 4
-    title: "Design shared workspace structure"
-    priority: MEDIUM
-    dependencies: [2]
-    
-  - id: 5
-    title: "Implement PM agent with basic interrogation"
+    title: "Implement blocking review workflow"
+    description: "Create PM review mechanism with git diff support"
     priority: HIGH
     dependencies: [3]
+    details: "Review requests, PM feedback, approval/revision flow"
+    
+  - id: 5
+    title: "Add task modification capability"
+    description: "Allow dynamic task list evolution"
+    priority: MEDIUM
+    dependencies: [4]
+    details: "propose_task_modification tool, PM approval workflow"
+    
+  - id: 6
+    title: "Create minimal workspace structure"
+    description: "Set up .squabble folder for state"
+    priority: MEDIUM
+    dependencies: [2]
+    details: "tasks.json, reviews folder, decisions folder"
+    
+  - id: 7
+    title: "Test with simple use case"
+    description: "Validate workflow with basic feature implementation"
+    priority: HIGH
+    dependencies: [4, 6]
+    details: "End-to-end test of engineer-PM collaboration"
 ```
 
 ## Getting Started
 
 ```bash
-# Install Squabble
-npm install -g @squabble/cli
+# Configure Claude Code with Squabble MCP
+claude mcp add squabble "npx -y @squabble/mcp-server"
 
-# Initialize a Squabble session (spawns PM agent)
-squabble init "Your project requirement"
+# Start Claude Code - you are now the Lead Engineer
+claude
 
-# Continue conversation with PM
-squabble continue "Here's more context..."
-
-# Check current status (PM reports team progress)
-squabble status
-
-# All commands go through PM - no direct specialist access
+# Use Squabble tools:
+# - interpret_and_consult_pm: Start PM collaboration
+# - negotiate_tasks_with_pm: Refine task list
+# - ask_user_clarification: Get user input
+# - implement_and_update_pm: Update progress
+# - consult_specialist_with_pm: Get expert advice
 ```
 
 ## Example Interaction
 
 ```
-$ squabble init "Add cryptocurrency payments to our e-commerce site"
+User: "Add cryptocurrency payments to our e-commerce site"
 
-PM: I need to understand your requirements better:
-1. Which cryptocurrencies do you want to support?
-2. What's your expected transaction volume?
-3. Do you need fiat conversion or hold crypto?
-4. What's your current payment infrastructure?
+Lead Engineer: I'll implement crypto payments for your e-commerce site. Let me interpret these requirements and consult with our PM.
 
-$ squabble continue "Bitcoin and Ethereum, 100 tx/day, convert to USD immediately, using Stripe currently"
+[Uses interpret_and_consult_pm]
 
-PM: Let me consult with our specialists on this...
-[PM spawns Engineer and Security agents in background]
+My interpretation: Need to integrate crypto payment processing, likely with immediate fiat conversion for accounting simplicity.
 
-PM: Based on our team's analysis:
-- Engineer recommends using Coinbase Commerce for easy Stripe integration
-- Security flagged the need for proper wallet management and compliance
-- Estimated effort: 2 weeks with proper testing
+PM: Good start, but we need more details:
+- Which cryptocurrencies specifically?
+- Regulatory compliance requirements?
+- Integration with existing payment flow?
 
-Here's the proposed task breakdown:
-1. Research crypto payment regulations (HIGH priority)
-2. Implement Coinbase Commerce integration
+Lead Engineer: Let me ask the user for these clarifications.
+
+[Uses ask_user_clarification]
+
+To User: "To properly implement crypto payments, I need to know:
+1. Which cryptocurrencies (Bitcoin, Ethereum, others)?
+2. Do you need immediate USD conversion or hold crypto?
+3. What's your current payment processor?"
+
+User: "Bitcoin and Ethereum, 100 tx/day, convert to USD immediately, using Stripe currently"
+
+Lead Engineer: Perfect. Let me discuss this with PM to create our implementation plan.
+
+[Uses negotiate_tasks_with_pm]
+
+PM's proposed tasks:
+1. Research crypto payment regulations
+2. Implement payment processor integration
 3. Add wallet security measures
 4. Update checkout flow
 5. Implement real-time conversion
 
-Shall we proceed with this approach?
+Lead Engineer: I partially agree, but suggest modifications:
+- Split task 2: separate API integration from frontend work
+- Add task 6: Comprehensive testing suite (critical for payments)
+- Task 1 might need security specialist input
+
+PM: Good points. Let's consult security on compliance requirements.
+
+[Uses consult_specialist_with_pm]
+
+Security Advisor: For crypto payments, you need:
+- KYC/AML compliance for high-value transactions
+- Secure key management (never store private keys)
+- PCI compliance maintained with tokenization
+- Audit trail for all transactions
+
+Lead Engineer: Based on security input, I'll start implementation. First task: research compliance requirements.
+
+[Uses implement_and_update_pm throughout development]
+
+Lead Engineer: Compliance research complete. Discovered we need transaction monitoring for amounts >$1000. Adding this as new task.
+
+PM: Approved. Updated task list. Proceed with Coinbase Commerce integration.
+
+[Continuous engineer-PM collaboration until completion]
 ```
 
 ## Open Questions for Validation
 
-1. Should PM have a configurable "debate depth" to prevent over-analysis?
-2. How does PM handle specialist disagreements that can't be resolved?
-3. Should PM be able to spawn specialized sub-PMs for large projects?
-4. What's the optimal context window management for long conversations?
-5. How do we handle PM session recovery after failures?
+1. How do we balance engineer autonomy with PM quality gates?
+2. Should specialists be able to escalate critical issues directly to the engineer?
+3. What's the optimal frequency for engineer-PM check-ins during implementation?
+4. How do we handle context overflow in long engineer-PM dialogues?
+5. Should the engineer be able to override PM task priorities based on technical dependencies?
+6. Can multiple engineers collaborate through shared PM context?
 
 ---
 

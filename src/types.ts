@@ -1,38 +1,14 @@
-export type AgentRole = 'pm' | 'engineer' | 'security' | 'architect';
+// Simplified types for sequential engineer-PM workflow
 
-export type SpecialistRole = Exclude<AgentRole, 'pm'>;
-
-export interface AgentSession {
-  role: AgentRole;
-  currentSessionId: string;
-  sessionHistory: string[];
-  messageCount: number;
-  createdAt: Date;
-  lastActive: Date;
-}
-
-export interface DebateContext {
-  topic: string;
-  requirement: string;
-  participants: AgentRole[];
-  rounds: DebateRound[];
-  status: 'active' | 'consensus' | 'escalated' | 'resolved';
-  decisions: Decision[];
-}
-
-export interface DebateRound {
-  round: number;
-  responses: Map<AgentRole, string>;
-  timestamp: Date;
-}
-
-export interface Decision {
-  type: 'architecture' | 'implementation' | 'security' | 'task';
-  description: string;
-  rationale: string;
-  proposedBy: AgentRole;
-  supportedBy: AgentRole[];
-  timestamp: Date;
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in-progress' | 'review' | 'done';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  dependencies: string[];
+  blockedBy?: string;
+  modificationHistory: TaskModification[];
 }
 
 export interface TaskModification {
@@ -40,32 +16,47 @@ export interface TaskModification {
   taskId?: string;
   reason: string;
   details?: any;
-  proposedBy: AgentRole;
+  timestamp: Date;
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'pending' | 'in_progress' | 'blocked' | 'completed';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  dependencies: string[];
-  blockedBy?: string;
-  assignee?: AgentRole;
-  createdBy: AgentRole;
-  modificationHistory: TaskModification[];
+export interface Decision {
+  type: 'architecture' | 'implementation' | 'security' | 'task';
+  description: string;
+  rationale: string;
+  timestamp: Date;
 }
 
-export interface PMDecision {
-  needsSpecialists: boolean;
-  requiredSpecialists: SpecialistRole[];
-  debateTopic?: string;
-  taskModifications: TaskModification[];
-  userResponse?: string;
+// PM session management for --resume functionality
+export interface PMSession {
+  currentSessionId: string;  // Latest session UUID
+  sessionHistory: string[];  // Keep last 3 session UUIDs max
+  createdAt: Date;
+  lastActive: Date;
 }
 
-export interface SquabbleAction {
-  type: 'init' | 'continue' | 'status' | 'approve' | 'intervene';
-  message?: string;
-  context?: any;
+// New types for sequential workflow
+export interface ReviewRequest {
+  taskId: string;
+  summary: string;
+  filesChanged: string[];
+  gitDiff?: string;
+  questions?: string[];
+  timestamp: Date;
+  pmSessionId: string;  // Track which PM session handled this
+}
+
+export interface PMFeedback {
+  approved: boolean;
+  feedback: string;
+  requiredChanges?: string[];
+  taskModifications?: TaskModification[];
+  sessionId: string;  // Which PM session gave this feedback
+}
+
+export interface WorkflowContext {
+  currentTaskId?: string;
+  pmSession?: PMSession;
+  lastReview?: ReviewRequest;
+  pmFeedback?: PMFeedback;
+  userClarifications?: string[];
 }

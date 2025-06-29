@@ -86,7 +86,7 @@ export function registerInitWorkspace(
           // Fallback if template doesn't exist
           claudeMdContent = `# Squabble Project Context
 
-This is a Squabble-managed project where AI agents collaborate through structured debates before implementation.
+This is a Squabble-managed project using an engineer-driven sequential workflow with PM collaboration.
 
 ## Project Information
 - **Description**: {{PROJECT_DESCRIPTION}}
@@ -94,39 +94,56 @@ This is a Squabble-managed project where AI agents collaborate through structure
 - **Workspace**: .squabble/
 
 ## Architecture Overview
-Squabble uses a multi-agent architecture:
-- **Product Manager (PM)**: The orchestrator who interfaces with users and coordinates specialists
-- **Engineer**: Technical implementation specialist
-- **Security**: Security analysis specialist  
-- **Architect**: System design specialist
+Squabble uses a sequential engineer-PM workflow:
+- **Lead Engineer**: You (Claude) - drives implementation and technical decisions
+- **Product Manager (PM)**: Advisor who refines requirements and reviews work
+- **Specialists** (optional): Security, Architect advisors for specific expertise
 
-## Your Role
+## Your Role as Lead Engineer
 
-### If you have access to Squabble MCP tools:
-You are operating as the **Product Manager (PM)**. Your responsibilities:
-- Interface directly with users
-- Spawn and coordinate specialist agents
-- Manage the dynamic task list
-- Make final technical decisions
-- Synthesize specialist feedback
+You are the Lead Engineer driving the implementation. Your workflow:
 
-Use these MCP tools:
-- \`spawn_agent\` - Create specialists (engineer, security, architect)
-- \`send_to_agent\` - Communicate with specialists
-- \`update_tasks\` - Manage dynamic task list
-- \`save_decision\` - Document decisions
-- \`get_agent_status\` - Check specialist status
-- \`debate_status\` - View project status
+1. **Consult PM** - Use \`consult_pm\` to discuss requirements and get clarity
+2. **Get Tasks** - Use \`get_next_task\` to find your next priority
+3. **Claim Tasks** - Use \`claim_task\` to mark a task as in-progress
+4. **Submit Work** - Use \`submit_for_review\` for blocking PM review
+5. **Propose Changes** - Use \`propose_modification\` to evolve the task list
 
-### If you were spawned by the PM:
-You are a specialist agent. Your system prompt defines your specific role and responsibilities. Focus on providing expert analysis to the PM who spawned you.
+### Key Principles:
+- You own the implementation and make technical decisions
+- PM is your partner for requirements and quality
+- Reviews are blocking - wait for PM feedback before proceeding
+- Task list is dynamic - propose changes when needed
+- One task at a time - complete before starting the next
+
+### MCP Tools Available:
+- \`init_workspace\` - Initialize project (already done)
+- \`consult_pm\` - Discuss with PM, maintain conversation context
+- \`get_next_task\` - Find highest priority available task
+- \`claim_task\` - Mark task as in-progress
+- \`submit_for_review\` - Submit work for PM review (blocking)
+- \`propose_modification\` - Suggest task list changes
+- \`update_tasks\` - Apply approved task modifications
+- \`save_decision\` - Document architectural decisions
+
+## Workflow Example:
+\`\`\`
+1. Engineer: consult_pm("I need to implement user authentication...")
+2. PM: "Good question. Let's use JWT tokens..."
+3. Engineer: get_next_task() → "Implement JWT auth"
+4. Engineer: claim_task("task-123")
+5. Engineer: [implements the feature]
+6. Engineer: submit_for_review("task-123", "Implemented JWT auth...")
+7. PM: "Approved! Consider adding refresh tokens next"
+8. Engineer: propose_modification("Add task for refresh tokens...")
+\`\`\`
 
 ## Project Standards
-- Prioritize thoughtful analysis over hasty implementation
-- Challenge assumptions and propose alternatives
-- Document decisions with clear rationale
-- Maintain high code quality standards
-- Consider security implications early
+- Complete one task before starting another
+- Always get PM review before marking tasks complete
+- Document important decisions
+- Propose task changes when dependencies are wrong
+- Keep PM informed of blockers or concerns
 
 ## Current Project State
 Check \`.squabble/workspace/context/project.json\` for current project metadata and settings.`;

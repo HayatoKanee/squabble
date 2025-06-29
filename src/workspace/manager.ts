@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { Task, Decision, DebateContext } from '../types.js';
+import { Task, Decision, PMSession, ReviewRequest, PMFeedback } from '../types.js';
 
 export class WorkspaceManager {
   private workspaceRoot: string;
@@ -22,9 +22,8 @@ export class WorkspaceManager {
       'workspace/designs',
       'workspace/decisions',
       'workspace/tasks',
-      'workspace/debates',
+      'workspace/reviews',  // For review requests/responses
       'workspace/context',
-      'sessions',
       'archive'
     ];
 
@@ -49,30 +48,31 @@ export class WorkspaceManager {
 
   // Paths
   getWorkspaceRoot(): string {
+    this.checkInitialized();
     return this.workspaceRoot;
   }
 
-  getSessionsPath(): string {
-    return path.join(this.workspaceRoot, 'sessions');
+  private getTasksPath(): string {
+    return path.join(this.workspaceRoot, 'workspace/tasks/tasks.json');
   }
 
-  getTasksPath(): string {
-    return path.join(this.workspaceRoot, 'workspace', 'tasks', 'current.json');
+  private getDecisionsPath(): string {
+    return path.join(this.workspaceRoot, 'workspace/decisions');
   }
 
-  getDebatesPath(): string {
-    return path.join(this.workspaceRoot, 'workspace', 'debates');
+  private getReviewsPath(): string {
+    return path.join(this.workspaceRoot, 'workspace/reviews');
   }
 
-  getDecisionsPath(): string {
-    return path.join(this.workspaceRoot, 'workspace', 'decisions');
+  private getContextPath(): string {
+    return path.join(this.workspaceRoot, 'workspace/context');
   }
 
   // Task Management
   async getTasks(): Promise<Task[]> {
     try {
-      const tasksData = await fs.readFile(this.getTasksPath(), 'utf-8');
-      return JSON.parse(tasksData);
+      const data = await fs.readFile(this.getTasksPath(), 'utf-8');
+      return JSON.parse(data) || [];
     } catch (error) {
       return [];
     }
@@ -84,26 +84,6 @@ export class WorkspaceManager {
       JSON.stringify(tasks, null, 2),
       'utf-8'
     );
-  }
-
-  // Debate Management
-  async saveDebate(debateId: string, debate: DebateContext): Promise<void> {
-    const debatePath = path.join(this.getDebatesPath(), `${debateId}.json`);
-    await fs.writeFile(
-      debatePath,
-      JSON.stringify(debate, null, 2),
-      'utf-8'
-    );
-  }
-
-  async getDebate(debateId: string): Promise<DebateContext | null> {
-    try {
-      const debatePath = path.join(this.getDebatesPath(), `${debateId}.json`);
-      const data = await fs.readFile(debatePath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      return null;
-    }
   }
 
   // Decision Management
@@ -120,67 +100,99 @@ export class WorkspaceManager {
     );
   }
 
-  // Session Management
-  async saveAgentSession(role: string, sessionId: string, data: any): Promise<void> {
-    const sessionPath = path.join(this.getSessionsPath(), `${role}-sessions.json`);
-    let sessions: Record<string, any> = {};
+  // PM Session Management (for --resume functionality)
+  async savePMSession(session: PMSession): Promise<void> {
+    const sessionPath = path.join(this.getContextPath(), 'pm-session.json');
     
-    try {
-      const existing = await fs.readFile(sessionPath, 'utf-8');
-      sessions = JSON.parse(existing);
-    } catch (error) {
-      // File doesn't exist yet
+    // Ensure we only keep last 3 sessions
+    if (session.sessionHistory.length > 3) {
+      session.sessionHistory = session.sessionHistory.slice(-3);
     }
-
-    sessions[sessionId] = {
-      ...data,
-      timestamp: new Date().toISOString()
-    };
-
-    await fs.writeFile(sessionPath, JSON.stringify(sessions, null, 2), 'utf-8');
+    
+    await fs.writeFile(
+      sessionPath,
+      JSON.stringify(session, null, 2),
+      'utf-8'
+    );
   }
 
-  async getLatestSession(role: string): Promise<string | null> {
+  async getPMSession(): Promise<PMSession | null> {
     try {
-      const sessionPath = path.join(this.getSessionsPath(), `${role}-sessions.json`);
+      const sessionPath = path.join(this.getContextPath(), 'pm-session.json');
       const data = await fs.readFile(sessionPath, 'utf-8');
-      const sessions = JSON.parse(data);
+      return JSON.parse(data);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Review Management
+  async saveReviewRequest(review: ReviewRequest): Promise<void> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const reviewPath = path.join(
+      this.getReviewsPath(),
+      `${timestamp}-request.json`
+    );
+    await fs.writeFile(
+      reviewPath,
+      JSON.stringify(review, null, 2),
+      'utf-8'
+    );
+  }
+
+  async savePMFeedback(feedback: PMFeedback): Promise<void> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const feedbackPath = path.join(
+      this.getReviewsPath(),
+      `${timestamp}-feedback.json`
+    );
+    await fs.writeFile(
+      feedbackPath,
+      JSON.stringify(feedback, null, 2),
+      'utf-8'
+    );
+  }
+
+  async getLatestReview(): Promise<{ request: ReviewRequest; feedback?: PMFeedback } | null> {
+    try {
+      const reviewFiles = await fs.readdir(this.getReviewsPath());
+      const requestFiles = reviewFiles.filter(f => f.endsWith('-request.json')).sort();
       
-      const sessionIds = Object.keys(sessions);
-      if (sessionIds.length === 0) return null;
+      if (requestFiles.length === 0) return null;
       
-      // Get the most recent session
-      return sessionIds.sort((a, b) => 
-        sessions[b].timestamp.localeCompare(sessions[a].timestamp)
-      )[0];
+      const latestRequest = requestFiles[requestFiles.length - 1];
+      const request = JSON.parse(
+        await fs.readFile(path.join(this.getReviewsPath(), latestRequest), 'utf-8')
+      );
+      
+      // Look for corresponding feedback
+      const feedbackFile = latestRequest.replace('-request.json', '-feedback.json');
+      let feedback;
+      if (reviewFiles.includes(feedbackFile)) {
+        feedback = JSON.parse(
+          await fs.readFile(path.join(this.getReviewsPath(), feedbackFile), 'utf-8')
+        );
+      }
+      
+      return { request, feedback };
     } catch (error) {
       return null;
     }
   }
 
   // Context Management
-  async saveContext(contextType: string, content: any): Promise<void> {
-    const contextPath = path.join(
-      this.workspaceRoot,
-      'workspace',
-      'context',
-      `${contextType}.json`
-    );
+  async saveContext(key: string, data: any): Promise<void> {
+    const contextPath = path.join(this.getContextPath(), `${key}.json`);
     await fs.writeFile(
       contextPath,
-      JSON.stringify(content, null, 2),
+      JSON.stringify(data, null, 2),
       'utf-8'
     );
   }
 
-  async getContext(contextType: string): Promise<any | null> {
+  async getContext(key: string): Promise<any> {
     try {
-      const contextPath = path.join(
-        this.workspaceRoot,
-        'workspace',
-        'context',
-        `${contextType}.json`
-      );
+      const contextPath = path.join(this.getContextPath(), `${key}.json`);
       const data = await fs.readFile(contextPath, 'utf-8');
       return JSON.parse(data);
     } catch (error) {

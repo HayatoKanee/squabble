@@ -1,7 +1,6 @@
 import { FastMCP } from 'fastmcp';
 import { registerAllTools } from './tools/index.js';
 import { WorkspaceManager } from './workspace/manager.js';
-import { SessionManager } from './agents/session-manager.js';
 import { TaskManager } from './tasks/task-manager.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -14,7 +13,6 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'
 export class SquabbleMCPServer {
   private server: FastMCP;
   private workspaceManager: WorkspaceManager;
-  private sessionManager: SessionManager;
   private taskManager: TaskManager;
 
   constructor() {
@@ -25,14 +23,12 @@ export class SquabbleMCPServer {
 
     // Initialize managers
     this.workspaceManager = new WorkspaceManager();
-    this.sessionManager = new SessionManager();
     this.taskManager = new TaskManager(this.workspaceManager);
 
     // Register all tools
     registerAllTools(
       this.server,
       this.workspaceManager,
-      this.sessionManager,
       this.taskManager
     );
   }
@@ -45,13 +41,16 @@ export class SquabbleMCPServer {
     });
 
     console.error('Squabble MCP Server started successfully');
-    console.error('Available tools for PM:');
-    console.error('- init_workspace: Initialize Squabble workspace and settings');
-    console.error('- spawn_agent: Spawn specialist agents (engineer, security, architect)');
-    console.error('- send_to_agent: Communicate with spawned agents');
+    console.error('Available tools for sequential workflow:');
+    console.error('- init_workspace: Initialize Squabble workspace');
     console.error('- update_tasks: Manage project task list');
     console.error('- save_decision: Document architectural decisions');
-    console.error('- get_agent_status: Check status of all agents');
-    console.error('- debate_status: Get project debate status');
+    console.error('');
+    console.error('Coming soon:');
+    console.error('- consult_pm: Initial PM consultation on requirements');
+    console.error('- get_next_task: Get next task to work on');
+    console.error('- claim_task: Mark task as in-progress');
+    console.error('- submit_for_review: Submit work for PM review (blocking)');
+    console.error('- propose_modification: Suggest task list changes');
   }
 }

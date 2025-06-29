@@ -25,11 +25,11 @@ export function registerUpdateTasks(
       const { modifications } = args;
 
       try {
-        // Apply all modifications
+        // Apply all modifications with timestamps
         await taskManager.applyModifications(
           modifications.map(mod => ({
             ...mod,
-            proposedBy: 'pm' // PM is always the one using this tool
+            timestamp: new Date()
           }))
         );
 
@@ -38,13 +38,13 @@ export function registerUpdateTasks(
         const stats = {
           total: tasks.length,
           pending: tasks.filter(t => t.status === 'pending').length,
-          inProgress: tasks.filter(t => t.status === 'in_progress').length,
-          blocked: tasks.filter(t => t.status === 'blocked').length,
-          completed: tasks.filter(t => t.status === 'completed').length
+          inProgress: tasks.filter(t => t.status === 'in-progress').length,
+          review: tasks.filter(t => t.status === 'review').length,
+          done: tasks.filter(t => t.status === 'done').length
         };
 
         const nextTasks = await taskManager.getNextTasks(3);
-        return `Updated ${modifications.length} tasks. Stats: ${stats.pending} pending, ${stats.inProgress} in progress, ${stats.blocked} blocked, ${stats.completed} completed. Next tasks: ${nextTasks.map(t => t.title).join(', ')}`;
+        return `Updated ${modifications.length} tasks. Stats: ${stats.pending} pending, ${stats.inProgress} in progress, ${stats.review} in review, ${stats.done} done. Next tasks: ${nextTasks.map(t => t.title).join(', ')}`;
       } catch (error) {
         console.error('Failed to update tasks:', error);
         return `Error: ${error instanceof Error ? error.message : 'Failed to update tasks'}`;
