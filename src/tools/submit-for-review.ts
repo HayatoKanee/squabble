@@ -31,7 +31,6 @@ export function registerSubmitForReview(
   pmSessionManager: PMSessionManager
 ) {
   const eventBroker = FileEventBroker.getInstance(workspaceManager);
-  const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
   
   server.addTool({
     name: 'submit_for_review',
@@ -42,6 +41,9 @@ export function registerSubmitForReview(
       
       try {
         workspaceManager.checkInitialized();
+        
+        // Create template service after workspace is initialized
+        const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
         
         // Get task details
         const tasks = await taskManager.getTasks();
