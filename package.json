@@ -6,12 +6,16 @@
   "main": "dist/index.js",
   "bin": {
     "squabble-mcp": "dist/mcp-server/server.js",
-    "squabble": "dist/mcp-server/server.js"
+    "squabble": "dist/mcp-server/server.js",
+    "squabble-review": "dist/cli/view-review.js"
   },
   "scripts": {
     "build": "tsc",
+    "build:server": "tsc",
     "dev": "tsx watch mcp-server/server.ts",
     "dev:pm": "tsx watch src/pm-server-entry.ts",
+    "pm-monitor": "tsx src/cli/pm-monitor.ts",
+    "view-review": "tsx src/cli/view-review.ts",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "tsx --test src/**/*.test.ts"
@@ -37,12 +41,14 @@
     "url": "https://github.com/HayatoKanee/squabble/issues"
   },
   "dependencies": {
-    "fastmcp": "^2.2.2",
-    "zod": "^3.23.8",
+    "@types/commander": "^2.12.0",
+    "chalk": "^5.3.0",
+    "commander": "^14.0.0",
     "execa": "^8.0.1",
+    "fastmcp": "^2.2.2",
     "fs-extra": "^11.2.0",
     "uuid": "^9.0.1",
-    "chalk": "^5.3.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

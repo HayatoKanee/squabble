@@ -11,11 +11,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // MCP configuration for PM server
+// In development, use local path. In production (npm), use npx
+const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 const PM_MCP_CONFIG = {
   mcpServers: {
     'squabble-pm': {
-      command: 'npx',
-      args: ['-y', 'squabble-mcp', '--role', 'pm']
+      command: isDevelopment ? 'node' : 'npx',
+      args: isDevelopment 
+        ? [path.join(__dirname, '../../../dist/mcp-server/server.js'), '--role', 'pm']
+        : ['-y', 'squabble-mcp', '--role', 'pm']
     }
   }
 };
@@ -26,6 +30,210 @@ const PM_MCP_CONFIG = {
  */
 export class PMSessionManager {
   constructor(private workspaceManager: WorkspaceManager) {}
+
+  /**
+   * Parses tool usage from Claude CLI stream-json output and writes to activity log
+   * Also extracts session ID from system events
+   */
+  private async logPMActivity(output: string): Promise<{ sessionId?: string }> {
+    const activityLogPath = path.join(this.workspaceManager.getWorkspaceRoot(), 'pm-activity.log');
+    const structuredLogPath = path.join(this.workspaceManager.getWorkspaceRoot(), 'pm-activity.jsonl');
+    const lines = output.split('\n').filter(line => line.trim());
+    let sessionId: string | undefined;
+    const toolUsageEvents: any[] = [];
+    
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line);
+        
+        // Handle different event types
+        switch (event.type) {
+          case 'system':
+            // Extract session ID from system init event
+            if (event.subtype === 'init' && event.session_id) {
+              sessionId = event.session_id;
+              await fs.appendFile(activityLogPath, `[${new Date().toISOString()}] 🚀 PM Session Started (ID: ${sessionId})\n`);
+              
+              // Also save structured log
+              await fs.appendFile(structuredLogPath, JSON.stringify({
+                timestamp: new Date().toISOString(),
+                type: 'session_start',
+                sessionId,
+                tools: event.tools
+              }) + '\n');
+            }
+            break;
+            
+          case 'tool_use':
+            const activity = this.formatToolUse(event);
+            await fs.appendFile(activityLogPath, activity + '\n');
+            
+            // Save structured event
+            const toolEvent = {
+              timestamp: new Date().toISOString(),
+              type: 'tool_use',
+              tool: event.name,
+              args: event.input,
+              id: event.id
+            };
+            toolUsageEvents.push(toolEvent);
+            await fs.appendFile(structuredLogPath, JSON.stringify(toolEvent) + '\n');
+            break;
+            
+          case 'tool_result':
+            // Log tool results for more context
+            const resultSummary = this.formatToolResult(event);
+            if (resultSummary) {
+              await fs.appendFile(activityLogPath, resultSummary + '\n');
+            }
+            
+            // Update structured event with result
+            const matchingTool = toolUsageEvents.find(t => t.id === event.tool_use_id);
+            if (matchingTool) {
+              await fs.appendFile(structuredLogPath, JSON.stringify({
+                timestamp: new Date().toISOString(),
+                type: 'tool_result',
+                tool_use_id: event.tool_use_id,
+                summary: resultSummary
+              }) + '\n');
+            }
+            break;
+            
+          case 'thinking':
+            // Log PM thinking process in development mode
+            if (process.env.NODE_ENV === 'development') {
+              await fs.appendFile(activityLogPath, `[${new Date().toISOString()}] 🤔 PM Thinking: ${event.content?.substring(0, 100)}...\n`);
+            }
+            break;
+            
+          case 'assistant':
+            // Log key decisions or findings
+            if (event.message?.content) {
+              for (const content of event.message.content) {
+                if (content.type === 'text' && content.text) {
+                  // Look for key phrases that indicate important findings
+                  const text = content.text;
+                  if (/approved|rejected|found|issue|problem|concern|good|excellent/i.test(text)) {
+                    const snippet = text.replace(/\n/g, ' ');
+                    await fs.appendFile(activityLogPath, `[${new Date().toISOString()}] 💬 PM: ${snippet}\n`);
+                  }
+                }
+              }
+            }
+            break;
+        }
+      } catch (e) {
+        // Skip non-JSON lines but log parsing errors in development
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to parse JSON line:', line, e);
+        }
+        continue;
+      }
+    }
+    
+    return { sessionId };
+  }
+  
+  /**
+   * Formats tool usage events into human-readable activity log entries
+   */
+  private formatToolUse(event: any): string {
+    const timestamp = new Date().toISOString();
+    const tool = event.name || event.tool;
+    const args = event.input || event.args || {};
+    
+    switch (tool) {
+      case 'Read':
+        let readMsg = `[${timestamp}] 📖 Read: ${args.file_path}`;
+        if (args.limit) readMsg += ` (lines ${args.offset || 1}-${(args.offset || 0) + args.limit})`;
+        return readMsg;
+        
+      case 'Bash':
+        return `[${timestamp}] 💻 Bash: ${args.command}`;
+        
+      case 'Grep':
+        return `[${timestamp}] 🔍 Grep: "${args.pattern}" in ${args.include || args.path || '*'}`;
+        
+      case 'Glob':
+        return `[${timestamp}] 📁 Glob: ${args.pattern} in ${args.path || '.'}`;
+        
+      case 'Write':
+        return `[${timestamp}] ✏️ Write: ${args.file_path}`;
+        
+      case 'Edit':
+      case 'MultiEdit':
+        return `[${timestamp}] ✏️ ${tool}: ${args.file_path}`;
+        
+      case 'WebFetch':
+        return `[${timestamp}] 🌐 WebFetch: ${args.url}`;
+        
+      case 'Task':
+        return `[${timestamp}] 🤖 Task: ${args.description}`;
+        
+      case 'mcp__squabble-pm__pm_update_tasks':
+        const modCount = args.modifications?.length || 0;
+        const modTypes = args.modifications?.map((m: any) => m.type).join(', ') || '';
+        return `[${timestamp}] 📋 PM Update Tasks: ${modCount} modifications (${modTypes})`;
+        
+      case 'LS':
+        return `[${timestamp}] 📂 LS: ${args.path}`;
+        
+      default:
+        return `[${timestamp}] 🔧 ${tool}: ${JSON.stringify(args)}`;
+    }
+  }
+  
+  /**
+   * Formats tool result events (optional - for showing what PM found)
+   */
+  private formatToolResult(event: any): string | null {
+    const timestamp = new Date().toISOString();
+    
+    // Handle both old and new event formats
+    const toolName = event.tool || event.name;
+    const resultContent = event.content?.[0]?.text || event.result || '';
+    
+    // Skip empty results
+    if (!resultContent || resultContent.trim() === '') {
+      return null;
+    }
+    
+    // Only log results for certain tools to avoid clutter
+    switch (toolName) {
+      case 'Grep':
+        const matches = resultContent.match(/\d+ matches?/);
+        if (matches) {
+          return `[${timestamp}]    └─ Found: ${matches[0]}`;
+        }
+        break;
+        
+      case 'Bash':
+        if (resultContent.includes('error') || resultContent.includes('Error')) {
+          return `[${timestamp}]    └─ Error: ${resultContent.substring(0, 100)}...`;
+        }
+        // Log success for important commands
+        if (event.input?.command && /git|test|lint|npm|yarn/.test(event.input.command)) {
+          return `[${timestamp}]    └─ ✓ Command completed successfully`;
+        }
+        break;
+        
+      case 'Read':
+        const lineCount = resultContent.split('\n').length;
+        if (lineCount > 10) {
+          return `[${timestamp}]    └─ Read ${lineCount} lines`;
+        }
+        break;
+        
+      case 'LS':
+        const fileCount = resultContent.split('\n').filter((l: string) => l.trim()).length;
+        if (fileCount > 0) {
+          return `[${timestamp}]    └─ Found ${fileCount} items`;
+        }
+        break;
+    }
+    
+    return null;
+  }
 
   /**
    * Spawns a new PM session or resumes an existing one
@@ -50,7 +258,10 @@ export class PMSessionManager {
       '--mcp-config',
       mcpConfigPath,
       '--allowedTools',
-      'mcp__squabble-pm__pm_update_tasks,Read,Write,Edit,MultiEdit,Bash,Grep,Glob,LS,WebFetch,Task'
+      'mcp__squabble-pm__pm_update_tasks,Read,Write,Edit,MultiEdit,Bash,Grep,Glob,LS,WebFetch,Task',
+      '--output-format',
+      'stream-json',  // Use structured JSON output for reliable tool usage tracking
+      '--verbose'  // Required for stream-json with --print mode
     ];
     
     // Add resume flag if continuing a session
@@ -59,24 +270,47 @@ export class PMSessionManager {
     }
     
     try {
-      // Execute claude CLI with prompt via stdin
-      const { stdout, stderr } = await execa('claude', args, {
-        input: prompt
+      // Execute claude CLI with prompt via stdin, capturing all output
+      const { stdout, stderr, all } = await execa('claude', args, {
+        input: prompt,
+        all: true  // Capture interleaved stdout and stderr
       });
       
       if (stderr) {
         console.error('Claude CLI stderr:', stderr);
       }
       
+      // Log session start
+      const sessionStartTime = new Date().toISOString();
+      await fs.appendFile(
+        path.join(this.workspaceManager.getWorkspaceRoot(), 'pm-activity.log'),
+        `\n${'='.repeat(80)}\n[${sessionStartTime}] 🚀 PM Session Started${resumeSessionId ? ' (resumed)' : ''}\n${'='.repeat(80)}\n`
+      );
+      
+      // Log PM activity from the combined output and extract session ID
+      let sessionId: string | undefined;
+      if (all) {
+        const result = await this.logPMActivity(all);
+        sessionId = result.sessionId;
+      }
+      
       if (!stdout || stdout.trim() === '') {
         throw new Error('No response from PM - claude CLI returned empty output');
       }
       
-      // Get the new session ID from the latest session file
-      const sessionId = await this.findLatestSessionId();
+      // Validate we got a session ID from the JSON events
+      if (!sessionId) {
+        throw new Error('No session ID found in Claude CLI output - expected system init event with session_id');
+      }
       
       // Update PM session tracking
       await this.updatePMSession(sessionId, resumeSessionId);
+      
+      // Log session end
+      await fs.appendFile(
+        path.join(this.workspaceManager.getWorkspaceRoot(), 'pm-activity.log'),
+        `[${new Date().toISOString()}] ✅ PM Session Completed\n${'='.repeat(80)}\n\n`
+      );
       
       return {
         response: stdout,
@@ -108,89 +342,33 @@ export class PMSessionManager {
   }
 
   /**
-   * Finds the most recent Claude session ID from the project directory
-   * Also cleans up old PM sessions to keep only the latest
-   */
-  private async findLatestSessionId(): Promise<string> {
-    const sessionsDir = this.getProjectSessionsDir();
-    
-    try {
-      // Ensure sessions directory exists
-      if (!await fs.pathExists(sessionsDir)) {
-        throw new Error(`Claude project directory not found: ${sessionsDir}`);
-      }
-      
-      const files = await fs.readdir(sessionsDir);
-      const sessionFiles = files
-        .filter(f => f.endsWith('.jsonl'))
-        .map(f => ({
-          name: f,
-          path: path.join(sessionsDir, f),
-          time: fs.statSync(path.join(sessionsDir, f)).mtime.getTime()
-        }))
-        .sort((a, b) => b.time - a.time);
-      
-      if (sessionFiles.length === 0) {
-        throw new Error('No Claude sessions found in project directory');
-      }
-      
-      // Get the latest session ID
-      const latestFile = sessionFiles[0].name;
-      const latestSessionId = latestFile.replace('.jsonl', '');
-      
-      // Clean up old PM sessions if we have a stored session
-      const pmSession = await this.workspaceManager.getPMSession();
-      if (pmSession && pmSession.sessionHistory.length > 0) {
-        // Keep only the latest PM session file, delete others
-        for (const sessionFile of sessionFiles) {
-          const sessionId = sessionFile.name.replace('.jsonl', '');
-          if (sessionId !== latestSessionId && pmSession.sessionHistory.includes(sessionId)) {
-            try {
-              await fs.remove(sessionFile.path);
-              console.log(`Cleaned up old PM session: ${sessionId}`);
-            } catch (err) {
-              console.error(`Failed to clean up session ${sessionId}:`, err);
-            }
-          }
-        }
-      }
-      
-      return latestSessionId;
-    } catch (error) {
-      throw new Error(`Failed to find Claude session: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Updates the PM session tracking with new session information
-   * Maintains only the last 3 sessions for space efficiency
+   * Updates the PM session tracking - keeps only current session
+   * Cleans up previous session file from Claude's project directory
    */
   private async updatePMSession(newSessionId: string, previousSessionId?: string): Promise<void> {
-    let session = await this.workspaceManager.getPMSession();
-    
-    if (!session) {
-      // Create new session
-      session = {
-        currentSessionId: newSessionId,
-        sessionHistory: [newSessionId],
-        createdAt: new Date(),
-        lastActive: new Date()
-      };
-    } else {
-      // Update existing session
-      session.currentSessionId = newSessionId;
-      session.lastActive = new Date();
+    // If we had a previous session, delete its file
+    if (previousSessionId && previousSessionId !== newSessionId) {
+      const sessionsDir = this.getProjectSessionsDir();
+      const oldSessionFile = path.join(sessionsDir, `${previousSessionId}.jsonl`);
       
-      // Add to history if not already present
-      if (!session.sessionHistory.includes(newSessionId)) {
-        session.sessionHistory.push(newSessionId);
-        
-        // Keep only last 3 sessions
-        if (session.sessionHistory.length > 3) {
-          session.sessionHistory = session.sessionHistory.slice(-3);
+      try {
+        if (await fs.pathExists(oldSessionFile)) {
+          await fs.remove(oldSessionFile);
+          console.error(`[Squabble] Cleaned up old session file: ${previousSessionId}`);
         }
+      } catch (cleanupError) {
+        console.error('[Squabble] Failed to cleanup old session file:', cleanupError);
+        // Don't fail the whole operation just for cleanup
       }
     }
+    
+    // Save only the current session - no history needed
+    const session: PMSession = {
+      currentSessionId: newSessionId,
+      sessionHistory: [newSessionId],  // Keep it simple - just the current session
+      createdAt: new Date(),
+      lastActive: new Date()
+    };
     
     await this.workspaceManager.savePMSession(session);
   }

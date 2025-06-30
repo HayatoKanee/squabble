@@ -1,7 +1,9 @@
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
+import path from 'path';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
+import { FileEventBroker } from '../streaming/file-event-broker.js';
 
 const consultPMSchema = z.object({
   message: z.string().describe('Your message or question for the PM'),
@@ -22,6 +24,7 @@ export function registerConsultPM(
   workspaceManager: WorkspaceManager
 ) {
   const pmSessionManager = new PMSessionManager(workspaceManager);
+  const eventBroker = FileEventBroker.getInstance(workspaceManager);
   
   server.addTool({
     name: 'consult_pm',
@@ -64,12 +67,47 @@ export function registerConsultPM(
           resumeSessionId = currentSession?.currentSessionId;
         }
         
-        // Consult PM
-        const { response, sessionId } = await pmSessionManager.consultPM(
+        // Start streaming PM session
+        const sessionId = await eventBroker.startPMSession(
           fullPrompt,
           PMSessionManager.createPMSystemPrompt(),
-          resumeSessionId
+          resumeSessionId,
+          {
+            engineerId: 'current-engineer', // TODO: Get actual engineer ID
+            taskId: context?.currentTask
+          }
         );
+        
+        // Collect PM response from streaming session
+        let response = '';
+        const responsePromise = new Promise<string>((resolve) => {
+          const messageHandler = (event: any) => {
+            if (event.sessionId === sessionId) {
+              if (event.type === 'pm_message' && event.message) {
+                response += event.message;
+              } else if (event.type === 'session_end') {
+                eventBroker.off('pm-event', messageHandler);
+                resolve(response);
+              }
+            }
+          };
+          eventBroker.on('pm-event', messageHandler);
+        });
+        
+        // Wait for the response to complete with timeout
+        const timeoutPromise = new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('PM response timeout')), 120000) // 2 minute timeout
+        );
+        
+        try {
+          response = await Promise.race([responsePromise, timeoutPromise]);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'PM response timeout') {
+            response = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
+          } else {
+            throw error;
+          }
+        }
         
         // Save conversation context
         await workspaceManager.saveContext('last-pm-consultation', {
@@ -84,7 +122,9 @@ export function registerConsultPM(
           ? 'Continuing previous PM session. Context maintained.'
           : 'Started new PM session. Use continueSession=true to maintain context.';
         
-        return `PM Response:\n\n${response}\n\n---\nSession ID: ${sessionId}\n${sessionInfo}`;
+        const activityLogPath = path.join(workspaceManager.getWorkspaceRoot(), 'pm-activity.log');
+        
+        return `PM Response:\n\n${response}\n\n---\nSession ID: ${sessionId}\n${sessionInfo}\n\n📝 PM activity log: ${activityLogPath}`;
       } catch (error) {
         console.error('Failed to consult PM:', error);
         return `Error: ${error instanceof Error ? error.message : 'Failed to consult PM'}. Ensure Claude CLI is installed and workspace is initialized.`;

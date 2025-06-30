@@ -149,6 +149,20 @@ Because AI should **debate and think** before it codes. Just like a good develop
 
 Stop babysitting AI code generation. Let specialists argue it out first, then get it right the first time.
 
+## Configuration
+
+### PM Activity Logs
+
+Squabble logs all PM activity to files in your workspace:
+
+- **Human-readable log**: `.squabble/pm-activity.log` - Follow PM conversations in real-time
+- **Structured data**: `.squabble/pm-activity.jsonl` - Machine-readable event stream
+
+To monitor PM activity:
+```bash
+tail -f .squabble/pm-activity.log
+```
+
 ## Development
 
 ```bash

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
+import { ReviewFormatter } from '../pm/review-formatter.js';
 import { execa } from 'execa';
 
 const submitForReviewSchema = z.object({
@@ -25,13 +26,14 @@ export function registerSubmitForReview(
   workspaceManager: WorkspaceManager
 ) {
   const pmSessionManager = new PMSessionManager(workspaceManager);
+  const reviewFormatter = new ReviewFormatter();
   
   server.addTool({
     name: 'submit_for_review',
     description: 'Submit completed work to PM for review. BLOCKING: Waits for PM response.',
     parameters: submitForReviewSchema,
     execute: async (args) => {
-      const { taskId, summary, filesChanged, testsAdded, includeGitDiff, questions, concerns } = args;
+      const { taskId, summary, filesChanged, includeGitDiff, questions } = args;
       
       try {
         workspaceManager.checkInitialized();
@@ -110,21 +112,32 @@ export function registerSubmitForReview(
         // Update review request with session ID
         reviewRequest.pmSessionId = sessionId;
         
-        // Parse PM response
+        // Parse and format the review
+        const reviewStorage = await reviewFormatter.parseReview(
+          pmResponse,
+          taskId,
+          task.title,
+          sessionId
+        );
+        
+        // Save formatted review
+        await reviewFormatter.saveReview(reviewStorage, workspaceManager.getWorkspaceRoot());
+        
+        // Parse PM response for legacy compatibility
         const pmDecision = parsePMResponse(pmResponse);
         
-        // Save PM feedback
+        // Save PM feedback (keep for backward compatibility)
         const pmFeedback = {
-          approved: pmDecision.approved,
+          approved: reviewStorage.formatted.approval === 'approved',
           feedback: pmResponse,
-          requiredChanges: pmDecision.requiredChanges,
+          requiredChanges: reviewStorage.formatted.actionItems,
           taskModifications: pmDecision.taskModifications,
           sessionId
         };
         await workspaceManager.savePMFeedback(pmFeedback);
         
         // Update task status based on PM decision
-        if (pmDecision.approved) {
+        if (reviewStorage.formatted.approval === 'approved') {
           await taskManager.applyModifications([{
             type: 'MODIFY',
             taskId,
@@ -142,11 +155,12 @@ export function registerSubmitForReview(
           }
           
           let result = 'Task approved by PM!\n\n';
-          result += `PM Feedback: ${pmDecision.summary || pmResponse}\n\n`;
+          result += `PM Feedback: ${reviewStorage.formatted.summary}\n\n`;
           result += 'Next Step: Use get_next_task to find your next task';
           if (pmDecision.taskModifications && pmDecision.taskModifications.length > 0) {
             result += `\n\nNote: ${pmDecision.taskModifications.length} new task(s) added based on PM feedback`;
           }
+          result += `\n\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/formatted.md`;
           return result;
         } else {
           // Return to in-progress for fixes
@@ -162,14 +176,15 @@ export function registerSubmitForReview(
           }]);
           
           let result = 'PM requested changes\n\n';
-          result += `PM Feedback: ${pmDecision.summary || pmResponse}\n\n`;
-          if (pmDecision.requiredChanges && pmDecision.requiredChanges.length > 0) {
+          result += `PM Feedback: ${reviewStorage.formatted.summary}\n\n`;
+          if (reviewStorage.formatted.actionItems && reviewStorage.formatted.actionItems.length > 0) {
             result += 'Required Changes:\n';
-            result += pmDecision.requiredChanges.map((c: string) => `- ${c}`).join('\n');
+            result += reviewStorage.formatted.actionItems.map((c: string) => `- ${c}`).join('\n');
             result += '\n\n';
           }
           result += 'Next Step: Address the feedback and resubmit for review\n';
-          result += 'Tip: Consider using consult_pm if you need clarification on the feedback';
+          result += 'Tip: Consider using consult_pm if you need clarification on the feedback\n';
+          result += `\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/formatted.md`;
           return result;
         }
       } catch (error) {

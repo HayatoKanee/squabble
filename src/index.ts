@@ -52,6 +52,7 @@ export class SquabbleMCPServer {
     }
   }
 
+
   async start() {
     // Start the MCP server
     // Note: Workspace is NOT automatically initialized - use init_workspace tool
@@ -78,5 +79,11 @@ export class SquabbleMCPServer {
       console.error('');
       console.error('Engineer mode: Task management restricted to PM role');
     }
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', () => {
+      console.error('\nShutting down Squabble MCP Server...');
+      process.exit(0);
+    });
   }
 }
