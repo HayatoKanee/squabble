@@ -18,7 +18,7 @@ export function registerGetNextTask(
 ) {
   server.addTool({
     name: 'get_next_task',
-    description: 'Get the next task to work on based on dependencies and priority',
+    description: 'Get the next task to work on based on dependencies and priority. Returns ONE task. Complete it before getting another. Research the domain FIRST.',
     parameters: getNextTaskSchema,
     execute: async (args) => {
       const { considerPriority, includeBlocked } = args;

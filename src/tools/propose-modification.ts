@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
+import { FileEventBroker } from '../streaming/file-event-broker.js';
 
 const taskModificationProposalSchema = z.object({
   type: z.enum(['ADD', 'DELETE', 'MODIFY', 'BLOCK', 'SPLIT', 'MERGE']),
@@ -24,13 +25,14 @@ const proposeModificationSchema = z.object({
 export function registerProposeModification(
   server: FastMCP,
   taskManager: TaskManager,
-  workspaceManager: WorkspaceManager
+  workspaceManager: WorkspaceManager,
+  pmSessionManager: PMSessionManager
 ) {
-  const pmSessionManager = new PMSessionManager(workspaceManager);
+  const eventBroker = FileEventBroker.getInstance(workspaceManager);
   
   server.addTool({
     name: 'propose_modification',
-    description: 'Propose changes to the task list. PM must approve before changes are applied.',
+    description: 'Propose changes to the task list. PM must approve before changes are applied. PM approval REQUIRED before changes apply. Include research to support proposal.',
     parameters: proposeModificationSchema,
     execute: async (args) => {
       const { reason, modifications, context } = args;
@@ -75,13 +77,47 @@ export function registerProposeModification(
         // Get current PM session
         const currentSession = await pmSessionManager.getCurrentSession();
         
-        // Consult PM for approval
+        // Start streaming PM session
         console.error('[Squabble] Proposing task modifications to PM...');
-        const { response: pmResponse } = await pmSessionManager.consultPM(
+        const sessionId = await eventBroker.startPMSession(
           proposalPrompt,
-          PMSessionManager.createPMSystemPrompt(),
-          currentSession?.currentSessionId
+          PMSessionManager.createPMSystemPromptWithCustom(workspaceManager.getWorkspaceRoot()),
+          currentSession?.currentSessionId,
+          {
+            engineerId: 'current-engineer'
+          }
         );
+        
+        // Collect PM response from streaming session
+        let pmResponse = '';
+        const responsePromise = new Promise<string>((resolve) => {
+          const messageHandler = (event: any) => {
+            if (event.sessionId === sessionId) {
+              if (event.type === 'pm_message' && event.message) {
+                pmResponse += event.message;
+              } else if (event.type === 'session_end') {
+                eventBroker.off('pm-event', messageHandler);
+                resolve(pmResponse);
+              }
+            }
+          };
+          eventBroker.on('pm-event', messageHandler);
+        });
+        
+        // Wait for the response to complete with timeout
+        const timeoutPromise = new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('PM response timeout')), 120000) // 2 minute timeout
+        );
+        
+        try {
+          pmResponse = await Promise.race([responsePromise, timeoutPromise]);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'PM response timeout') {
+            pmResponse = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
+          } else {
+            throw error;
+          }
+        }
         
         // Parse PM decision
         const pmDecision = parsePMDecision(pmResponse, modifications);

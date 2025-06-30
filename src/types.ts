@@ -9,6 +9,7 @@ export interface Task {
   dependencies: string[];
   blockedBy?: string;
   requiresPlan: boolean;  // If true, engineer must submit implementation plan before claiming
+  branch: string;  // Git branch name assigned by PM (e.g., feature/SQBL-25-add-auth)
   modificationHistory: TaskModification[];
 }
 

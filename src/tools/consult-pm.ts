@@ -21,14 +21,14 @@ const consultPMSchema = z.object({
  */
 export function registerConsultPM(
   server: FastMCP,
-  workspaceManager: WorkspaceManager
+  workspaceManager: WorkspaceManager,
+  pmSessionManager: PMSessionManager
 ) {
-  const pmSessionManager = new PMSessionManager(workspaceManager);
   const eventBroker = FileEventBroker.getInstance(workspaceManager);
   
   server.addTool({
     name: 'consult_pm',
-    description: 'Consult with the PM about requirements, approach, or any questions. Maintains conversation context.',
+    description: 'Consult with the PM about requirements, approach, or any questions. Maintains conversation context. MANDATORY first step. Research deeply with WebSearch BEFORE consulting. Use @User to escalate questions to human.',
     parameters: consultPMSchema,
     execute: async (args) => {
       const { message, context, continueSession } = args;
@@ -70,7 +70,7 @@ export function registerConsultPM(
         // Start streaming PM session
         const sessionId = await eventBroker.startPMSession(
           fullPrompt,
-          PMSessionManager.createPMSystemPrompt(),
+          PMSessionManager.createPMSystemPromptWithCustom(workspaceManager.getWorkspaceRoot()),
           resumeSessionId,
           {
             engineerId: 'current-engineer', // TODO: Get actual engineer ID

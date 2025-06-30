@@ -1,6 +1,7 @@
 import { FastMCP } from 'fastmcp';
 import { WorkspaceManager } from './workspace/manager.js';
 import { TaskManager } from './tasks/task-manager.js';
+import { PMSessionManager } from './pm/session-manager.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -23,6 +24,7 @@ export class SquabbleMCPServer {
   private server: FastMCP;
   private workspaceManager: WorkspaceManager;
   private taskManager: TaskManager;
+  private pmSessionManager: PMSessionManager;
   private role: 'engineer' | 'pm';
 
   constructor(role: 'engineer' | 'pm' = 'engineer') {
@@ -35,6 +37,7 @@ export class SquabbleMCPServer {
     // Initialize managers
     this.workspaceManager = new WorkspaceManager();
     this.taskManager = new TaskManager(this.workspaceManager);
+    this.pmSessionManager = new PMSessionManager(this.workspaceManager);
 
     // Register tools based on role
     if (role === 'pm') {
@@ -44,11 +47,11 @@ export class SquabbleMCPServer {
       // Engineer gets all tools except pm_update_tasks
       registerInitWorkspace(this.server, this.workspaceManager);
       registerSaveDecision(this.server, this.workspaceManager);
-      registerConsultPM(this.server, this.workspaceManager);
+      registerConsultPM(this.server, this.workspaceManager, this.pmSessionManager);
       registerGetNextTask(this.server, this.taskManager);
-      registerClaimTask(this.server, this.taskManager, this.workspaceManager);
-      registerSubmitForReview(this.server, this.taskManager, this.workspaceManager);
-      registerProposeModification(this.server, this.taskManager, this.workspaceManager);
+      registerClaimTask(this.server, this.taskManager, this.workspaceManager, this.pmSessionManager);
+      registerSubmitForReview(this.server, this.taskManager, this.workspaceManager, this.pmSessionManager);
+      registerProposeModification(this.server, this.taskManager, this.workspaceManager, this.pmSessionManager);
     }
   }
 

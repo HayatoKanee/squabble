@@ -27,15 +27,15 @@ const submitForReviewSchema = z.object({
 export function registerSubmitForReview(
   server: FastMCP,
   taskManager: TaskManager,
-  workspaceManager: WorkspaceManager
+  workspaceManager: WorkspaceManager,
+  pmSessionManager: PMSessionManager
 ) {
-  const pmSessionManager = new PMSessionManager(workspaceManager);
   const eventBroker = FileEventBroker.getInstance(workspaceManager);
   const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
   
   server.addTool({
     name: 'submit_for_review',
-    description: 'Submit completed work to PM for review. BLOCKING: Waits for PM response.',
+    description: 'Submit completed work to PM for review. BLOCKING: Waits for PM response. ⚠️ BLOCKING: Execution STOPS until PM responds. PM will perform DEEP code review. PM may request @User input if clarification needed.',
     parameters: submitForReviewSchema,
     execute: async (args) => {
       const { taskId, summary, filesChanged, includeGitDiff, questions, useTemplate } = args;
@@ -98,7 +98,7 @@ export function registerSubmitForReview(
         console.error('[Squabble] Submitting to PM for review... This may take a moment.');
         const sessionId = await eventBroker.startPMSession(
           reviewPrompt,
-          PMSessionManager.createPMSystemPrompt(),
+          PMSessionManager.createPMSystemPromptWithCustom(workspaceManager.getWorkspaceRoot()),
           currentSession?.currentSessionId,
           {
             engineerId: 'current-engineer',

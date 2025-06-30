@@ -20,13 +20,14 @@ const claimTaskSchema = z.object({
 export function registerClaimTask(
   server: FastMCP,
   taskManager: TaskManager,
-  workspaceManager: WorkspaceManager
+  workspaceManager: WorkspaceManager,
+  pmSessionManager: PMSessionManager
 ) {
   const eventBroker = FileEventBroker.getInstance(workspaceManager);
   
   server.addTool({
     name: 'claim_task',
-    description: 'Claim a task by marking it as in-progress',
+    description: 'Claim a task by marking it as in-progress. ONE task at a time. Claiming another WILL FAIL. Research requirements FIRST.',
     parameters: claimTaskSchema,
     execute: async (args) => {
       const { taskId, notes } = args;
@@ -122,7 +123,6 @@ export function registerClaimTask(
               `2. REQUEST CHANGES - if modifications are needed\n\n` +
               `Consider: technical approach, risk assessment, completeness, and alignment with project goals.`;
             
-            const pmSessionManager = new PMSessionManager(workspaceManager);
             const currentSession = await pmSessionManager.getCurrentSession();
             
             console.error('[Squabble] Submitting plan to PM for review...');
@@ -130,7 +130,7 @@ export function registerClaimTask(
             // Start streaming PM session
             const sessionId = await eventBroker.startPMSession(
               pmPrompt,
-              PMSessionManager.createPMSystemPrompt(),
+              PMSessionManager.createPMSystemPromptWithCustom(workspaceManager.getWorkspaceRoot()),
               currentSession?.currentSessionId,
               {
                 engineerId: process.env.USER || 'unknown',

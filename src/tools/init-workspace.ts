@@ -2,13 +2,15 @@ import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { TemplateService } from '../templates/template-service.js';
+import { EXAMPLE_CUSTOM_PM_PROMPT } from '../pm/custom-prompt.js';
 import fs from 'fs-extra';
 import path from 'path';
 
 const initWorkspaceSchema = z.object({
   projectDescription: z.string().optional().describe('Brief description of the project'),
   enableBackgroundTasks: z.boolean().optional().default(true).describe('Enable background task execution'),
-  forceAutoBackgroundTasks: z.boolean().optional().default(true).describe('Force auto background tasks')
+  forceAutoBackgroundTasks: z.boolean().optional().default(true).describe('Force auto background tasks'),
+  createExamplePMPrompt: z.boolean().optional().default(false).describe('Create example custom PM prompt')
 });
 
 export function registerInitWorkspace(
@@ -33,6 +35,17 @@ export function registerInitWorkspace(
           console.error('Failed to initialize templates:', templateError);
           // Continue with initialization even if templates fail
           // Templates are helpful but not critical for workspace functionality
+        }
+        
+        // Create prompts directory
+        const promptsDir = path.join(workspaceManager.getWorkspaceRoot(), 'workspace', 'prompts');
+        await fs.ensureDir(promptsDir);
+        
+        // Create example custom PM prompt if requested
+        if (args.createExamplePMPrompt) {
+          const examplePromptPath = path.join(promptsDir, 'pm.md.example');
+          await fs.writeFile(examplePromptPath, EXAMPLE_CUSTOM_PM_PROMPT, 'utf-8');
+          console.log('Created example custom PM prompt at:', examplePromptPath);
         }
         
         // Create project metadata
@@ -172,34 +185,70 @@ Check \`.squabble/workspace/context/project.json\` for current project metadata 
         const readmePath = path.join(workspaceManager.getWorkspaceRoot(), 'README.md');
         const readmeContent = `# Squabble Workspace
 
-This project is managed by Squabble - AI agents that debate before they code.
+This directory contains the Squabble workspace for your project.
 
-## Project Description
-${args.projectDescription || 'No description provided'}
+## Project Information
+- **Description**: ${args.projectDescription || 'No description provided'}
+- **Initialized**: ${new Date().toISOString()}
+- **Settings**: Background tasks ${args.enableBackgroundTasks ? 'enabled' : 'disabled'}, Auto tasks ${args.forceAutoBackgroundTasks ? 'enabled' : 'disabled'}
 
-## Settings
-- Background Tasks: ${args.enableBackgroundTasks ? 'Enabled' : 'Disabled'}
-- Auto Background Tasks: ${args.forceAutoBackgroundTasks ? 'Enabled' : 'Disabled'}
+## Directory Structure
 
-## Structure
-- \`workspace/\` - Active project files
-  - \`requirements/\` - Evolving requirements
-  - \`designs/\` - Architecture proposals
-  - \`decisions/\` - Decision records
-  - \`tasks/\` - Dynamic task list
-  - \`debates/\` - Agent debates
-  - \`context/\` - Project context
-- \`sessions/\` - Agent session tracking
-- \`archive/\` - Completed debates
+\`\`\`
+.squabble/
+├── workspace/
+│   ├── tasks/          # Task list managed by PM
+│   ├── plans/          # Implementation plans for tasks
+│   ├── reviews/        # Code review history
+│   ├── prompts/        # Custom PM prompts (optional)
+│   ├── context/        # Project metadata
+│   ├── templates/      # Document templates
+│   └── decisions/      # Architectural decision records
+├── pm-activity.log     # Audit trail of PM actions
+├── pm-activity.jsonl   # Structured PM activity log
+└── sessions/           # PM session tracking
+\`\`\`
 
-## Usage
-Use Squabble MCP tools to:
-- \`spawn_agent\` - Create specialist agents
-- \`send_to_agent\` - Communicate with agents
-- \`apply_modifications\` - Apply task modifications
-- \`save_decision\` - Document decisions
+## Customization Options
 
-Initialized: ${new Date().toISOString()}
+### Custom PM Prompts
+Place a \`pm.md\` file in \`workspace/prompts/\` to customize PM behavior:
+- Add domain-specific expertise (e.g., fintech, healthcare)
+- Define custom review standards
+- Set project-specific priorities
+
+Example: \`workspace/prompts/pm.md.example\` (if created during init)
+
+### Document Templates
+Templates in \`workspace/templates/\` are used for:
+- \`implementation-plan.md\` - Auto-generated when claiming tasks
+- \`implementation-report.md\` - For structured review submissions
+- \`review.md\` - PM review responses
+
+Edit these templates to match your project's needs.
+
+## Log Files
+
+### pm-activity.log
+Human-readable log of all PM actions:
+- Tool usage (Read, Grep, etc.)
+- Key decisions and findings
+- Session start/end markers
+
+### pm-activity.jsonl
+Structured JSON log for programmatic analysis:
+- Detailed tool parameters
+- Session IDs for continuity
+- Timestamps for all events
+
+## For Developers
+
+The workspace is designed to be version-controlled. Consider:
+- Commit \`tasks/\` to track project progress
+- Commit \`decisions/\` to preserve architectural choices
+- Optionally gitignore logs if they become too large
+
+For more information, see the main project documentation.
 `;
         
         await fs.writeFile(readmePath, readmeContent, 'utf-8');
@@ -210,11 +259,16 @@ Initialized: ${new Date().toISOString()}
 ✅ Created .claude/settings.local.json with background tasks ${args.enableBackgroundTasks ? 'enabled' : 'disabled'}
 ✅ Created CLAUDE.md with project context
 ✅ Initialized templates directory with default templates
+✅ Created prompts directory for custom PM prompts
 
 Templates created in .squabble/templates/:
 - implementation-plan.md: For engineers to submit their implementation plans
 - implementation-report.md: For engineers to report implementation completion
 - review.md: For PM review feedback
+
+${args.createExamplePMPrompt ? '📝 Example custom PM prompt created at: .squabble/workspace/prompts/pm.md.example\nRename to pm.md to activate custom PM personality\n\n' : ''}Custom PM Prompts:
+- To customize PM behavior, create: .squabble/workspace/prompts/pm.md
+- The custom prompt will replace PM's default instructions while keeping core functionality
 
 You are now the Product Manager (PM) because you have access to Squabble MCP tools.
 Specialists you spawn will automatically know they are specialists based on their system prompts.`;

@@ -57,6 +57,7 @@ export class TaskManager {
       requiresPlan: mod.details.requiresPlan !== undefined 
         ? mod.details.requiresPlan 
         : this.shouldRequirePlan(mod.details.priority),  // Default based on priority
+      branch: mod.details.branch,  // PM-assigned git branch name
       modificationHistory: [{
         ...mod,
         timestamp: new Date()
@@ -123,6 +124,7 @@ export class TaskManager {
           requiresPlan: mod.details.requiresPlan !== undefined 
             ? mod.details.requiresPlan 
             : task.requiresPlan,
+          branch: mod.details.branch || task.branch,  // Allow updating branch
           modificationHistory: [...task.modificationHistory, mod]
         };
       }
