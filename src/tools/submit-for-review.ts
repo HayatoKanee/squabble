@@ -124,23 +124,8 @@ export function registerSubmitForReview(
           eventBroker.on('pm-event', messageHandler);
         });
         
-        // Wait for the response to complete with timeout
-        const timeoutPromise = new Promise<string>((_, reject) => 
-          setTimeout(() => reject(new Error('PM response timeout')), 180000) // 3 minute timeout for reviews
-        );
-        
-        try {
-          pmResponse = await Promise.race([responsePromise, timeoutPromise]);
-        } catch (error) {
-          if (error instanceof Error && error.message === 'PM response timeout') {
-            // DO NOT remove event listeners - we want to continue capturing PM activity
-            // The PM might still be working and we need the audit trail
-            pmResponse = 'PM response timed out but session continues. The PM is still working - check the activity log for ongoing updates.';
-            console.error('[Squabble] PM review timed out but logging continues');
-          } else {
-            throw error;
-          }
-        }
+        // Wait for the response to complete (no timeout)
+        pmResponse = await responsePromise;
         
         // We have the sessionId for the review log
         

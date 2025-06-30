@@ -104,20 +104,8 @@ export function registerProposeModification(
           eventBroker.on('pm-event', messageHandler);
         });
         
-        // Wait for the response to complete with timeout
-        const timeoutPromise = new Promise<string>((_, reject) => 
-          setTimeout(() => reject(new Error('PM response timeout')), 120000) // 2 minute timeout
-        );
-        
-        try {
-          pmResponse = await Promise.race([responsePromise, timeoutPromise]);
-        } catch (error) {
-          if (error instanceof Error && error.message === 'PM response timeout') {
-            pmResponse = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
-          } else {
-            throw error;
-          }
-        }
+        // Wait for the response to complete (no timeout)
+        pmResponse = await responsePromise;
         
         // Parse PM decision
         const pmDecision = parsePMDecision(pmResponse, modifications);
