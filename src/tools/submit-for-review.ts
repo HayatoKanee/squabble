@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
-import { ReviewFormatter } from '../pm/review-formatter.js';
 import { FileEventBroker } from '../streaming/file-event-broker.js';
+import { TemplateService } from '../templates/template-service.js';
 import { execa } from 'execa';
+import fs from 'fs-extra';
+import path from 'path';
 
 const submitForReviewSchema = z.object({
   taskId: z.string().describe('ID of the task to submit for review'),
@@ -14,7 +16,8 @@ const submitForReviewSchema = z.object({
   testsAdded: z.boolean().describe('Whether tests were added/updated'),
   includeGitDiff: z.boolean().optional().default(true).describe('Include git diff in review'),
   questions: z.array(z.string()).optional().describe('Specific questions for PM'),
-  concerns: z.array(z.string()).optional().describe('Any concerns or known issues')
+  concerns: z.array(z.string()).optional().describe('Any concerns or known issues'),
+  useTemplate: z.boolean().optional().default(false).describe('Use implementation report template for structured submission')
 });
 
 /**
@@ -27,15 +30,15 @@ export function registerSubmitForReview(
   workspaceManager: WorkspaceManager
 ) {
   const pmSessionManager = new PMSessionManager(workspaceManager);
-  const reviewFormatter = new ReviewFormatter();
   const eventBroker = FileEventBroker.getInstance(workspaceManager);
+  const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
   
   server.addTool({
     name: 'submit_for_review',
     description: 'Submit completed work to PM for review. BLOCKING: Waits for PM response.',
     parameters: submitForReviewSchema,
     execute: async (args) => {
-      const { taskId, summary, filesChanged, includeGitDiff, questions } = args;
+      const { taskId, summary, filesChanged, includeGitDiff, questions, useTemplate } = args;
       
       try {
         workspaceManager.checkInitialized();
@@ -71,19 +74,7 @@ export function registerSubmitForReview(
           }
         }
         
-        // Create review request
-        const reviewRequest = {
-          taskId,
-          summary,
-          filesChanged,
-          gitDiff: gitDiff || undefined,
-          questions: questions || undefined,
-          timestamp: new Date(),
-          pmSessionId: ''  // Will be filled after PM consultation
-        };
-        
-        // Save review request
-        await workspaceManager.saveReviewRequest(reviewRequest);
+        // Note: We no longer save review request separately - everything goes in review.log
         
         // Update task status to review
         await taskManager.applyModifications([{
@@ -98,7 +89,7 @@ export function registerSubmitForReview(
         }]);
         
         // Build PM review prompt
-        const reviewPrompt = buildReviewPrompt(task, args, gitDiff);
+        const reviewPrompt = buildReviewPrompt(task, args, gitDiff, templateService);
         
         // Get current PM session
         const currentSession = await pmSessionManager.getCurrentSession();
@@ -140,42 +131,46 @@ export function registerSubmitForReview(
           pmResponse = await Promise.race([responsePromise, timeoutPromise]);
         } catch (error) {
           if (error instanceof Error && error.message === 'PM response timeout') {
-            pmResponse = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
-            console.error('[Squabble] PM review timed out');
+            // DO NOT remove event listeners - we want to continue capturing PM activity
+            // The PM might still be working and we need the audit trail
+            pmResponse = 'PM response timed out but session continues. The PM is still working - check the activity log for ongoing updates.';
+            console.error('[Squabble] PM review timed out but logging continues');
           } else {
             throw error;
           }
         }
         
-        // Update review request with session ID
-        reviewRequest.pmSessionId = sessionId;
+        // We have the sessionId for the review log
         
-        // Parse and format the review
-        const reviewStorage = await reviewFormatter.parseReview(
-          pmResponse,
-          taskId,
-          task.title,
-          sessionId
+        // Save simple review log
+        const reviewDir = path.join(
+          workspaceManager.getWorkspaceRoot(),
+          'workspace',
+          'reviews',
+          taskId
         );
+        await fs.ensureDir(reviewDir);
         
-        // Save formatted review
-        await reviewFormatter.saveReview(reviewStorage, workspaceManager.getWorkspaceRoot());
+        const reviewLogPath = path.join(reviewDir, 'review.log');
+        const reviewLogContent = [
+          '='.repeat(80),
+          `Task Review: ${taskId} - ${task.title}`,
+          `Reviewed: ${new Date().toISOString()}`,
+          `Session ID: ${sessionId}`,
+          '='.repeat(80),
+          '',
+          pmResponse,
+          '',
+          '='.repeat(80)
+        ].join('\n');
         
-        // Parse PM response for legacy compatibility
+        await fs.writeFile(reviewLogPath, reviewLogContent, 'utf-8');
+        
+        // Parse PM response to determine approval
         const pmDecision = parsePMResponse(pmResponse);
         
-        // Save PM feedback (keep for backward compatibility)
-        const pmFeedback = {
-          approved: reviewStorage.formatted.approval === 'approved',
-          feedback: pmResponse,
-          requiredChanges: reviewStorage.formatted.actionItems,
-          taskModifications: pmDecision.taskModifications,
-          sessionId
-        };
-        await workspaceManager.savePMFeedback(pmFeedback);
-        
         // Update task status based on PM decision
-        if (reviewStorage.formatted.approval === 'approved') {
+        if (pmDecision.approved) {
           await taskManager.applyModifications([{
             type: 'MODIFY',
             taskId,
@@ -193,12 +188,12 @@ export function registerSubmitForReview(
           }
           
           let result = 'Task approved by PM!\n\n';
-          result += `PM Feedback: ${reviewStorage.formatted.summary}\n\n`;
+          result += `PM Feedback: ${pmDecision.summary}\n\n`;
           result += 'Next Step: Use get_next_task to find your next task';
           if (pmDecision.taskModifications && pmDecision.taskModifications.length > 0) {
             result += `\n\nNote: ${pmDecision.taskModifications.length} new task(s) added based on PM feedback`;
           }
-          result += `\n\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/formatted.md`;
+          result += `\n\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/review.log`;
           return result;
         } else {
           // Return to in-progress for fixes
@@ -214,15 +209,15 @@ export function registerSubmitForReview(
           }]);
           
           let result = 'PM requested changes\n\n';
-          result += `PM Feedback: ${reviewStorage.formatted.summary}\n\n`;
-          if (reviewStorage.formatted.actionItems && reviewStorage.formatted.actionItems.length > 0) {
+          result += `PM Feedback: ${pmDecision.summary}\n\n`;
+          if (pmDecision.requiredChanges && pmDecision.requiredChanges.length > 0) {
             result += 'Required Changes:\n';
-            result += reviewStorage.formatted.actionItems.map((c: string) => `- ${c}`).join('\n');
+            result += pmDecision.requiredChanges.map((c: string) => `- ${c}`).join('\n');
             result += '\n\n';
           }
           result += 'Next Step: Address the feedback and resubmit for review\n';
           result += 'Tip: Consider using consult_pm if you need clarification on the feedback\n';
-          result += `\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/formatted.md`;
+          result += `\nDetailed review saved in: .squabble/workspace/reviews/${taskId}/review.log`;
           return result;
         }
       } catch (error) {
@@ -249,7 +244,39 @@ export function registerSubmitForReview(
 }
 
 // Helper functions
-function buildReviewPrompt(task: any, args: any, gitDiff: string): string {
+function buildReviewPrompt(task: any, args: any, gitDiff: string, templateService: TemplateService): string {
+    // If template is requested, use it
+    if (args.useTemplate) {
+      const template = templateService.getTemplate('implementation-report');
+      const filledTemplate = templateService.fillTemplate(template, {
+        taskId: task.id,
+        taskTitle: task.title,
+        taskDescription: task.description,
+        summary: args.summary,
+        filesChanged: args.filesChanged,
+        testsAdded: args.testsAdded,
+        concerns: args.concerns || [],
+        questions: args.questions || []
+      });
+      
+      // Prepend the filled template and append git diff and review instructions
+      const parts = [filledTemplate];
+      
+      if (gitDiff) {
+        parts.push(`\n## Code Changes\n\`\`\`diff\n${gitDiff}\n\`\`\``);
+      }
+      
+      parts.push(`\nPlease provide:
+1. Whether the implementation is approved or needs changes
+2. Specific feedback on the code quality and completeness
+3. If changes are needed, list them clearly
+4. Any suggestions for improvement
+5. Whether any new tasks should be added based on this implementation`);
+      
+      return parts.join('\n\n');
+    }
+    
+    // Otherwise use the original format
     const parts = [`Please review the implementation for task: "${task.title}"`];
     
     if (task.description) {

@@ -1,6 +1,7 @@
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { WorkspaceManager } from '../workspace/manager.js';
+import { TemplateService } from '../templates/template-service.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -22,6 +23,17 @@ export function registerInitWorkspace(
       try {
         // Initialize workspace structure
         await workspaceManager.initialize();
+        
+        // Initialize template service and ensure templates exist
+        try {
+          const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
+          await templateService.ensureTemplatesExist();
+          console.log('Templates initialized successfully');
+        } catch (templateError) {
+          console.error('Failed to initialize templates:', templateError);
+          // Continue with initialization even if templates fail
+          // Templates are helpful but not critical for workspace functionality
+        }
         
         // Create project metadata
         const projectMeta = {
@@ -197,6 +209,12 @@ Initialized: ${new Date().toISOString()}
 ✅ Created .squabble workspace at: ${workspaceManager.getWorkspaceRoot()}
 ✅ Created .claude/settings.local.json with background tasks ${args.enableBackgroundTasks ? 'enabled' : 'disabled'}
 ✅ Created CLAUDE.md with project context
+✅ Initialized templates directory with default templates
+
+Templates created in .squabble/templates/:
+- implementation-plan.md: For engineers to submit their implementation plans
+- implementation-report.md: For engineers to report implementation completion
+- review.md: For PM review feedback
 
 You are now the Product Manager (PM) because you have access to Squabble MCP tools.
 Specialists you spawn will automatically know they are specialists based on their system prompts.`;

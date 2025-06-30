@@ -4,6 +4,7 @@ import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
 import { FileEventBroker } from '../streaming/file-event-broker.js';
+import { TemplateService } from '../templates/template-service.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -62,14 +63,38 @@ export function registerClaimTask(
           const planExists = await fs.pathExists(planPath);
           
           if (!planExists) {
-            return `Error: Task requires an implementation plan.\n\n` +
-              `Please create your plan at:\n${planPath}\n\n` +
-              `Plan should include:\n` +
-              `- Approach and algorithm choices\n` +
-              `- Technology/library decisions\n` +
-              `- Risks and mitigation strategies\n` +
-              `- Alternative approaches considered\n\n` +
-              `Once you've created the plan, run claim_task again to submit it for PM review.`;
+            // Generate implementation plan from template
+            const templateService = new TemplateService(workspaceManager.getWorkspaceRoot());
+            const template = templateService.getTemplate('implementation-plan');
+            
+            // Fill template with available context
+            const filledTemplate = templateService.fillTemplate(template, {
+              taskId: taskId,
+              taskTitle: task.title,
+              taskDescription: task.description || 'No description provided',
+              approach: '<!-- TODO: Describe your implementation approach here -->',
+              steps: ['<!-- TODO: List implementation steps -->', '<!-- Add more steps as needed -->'],
+              risks: ['<!-- TODO: Identify potential risks -->', '<!-- Add more risks as needed -->'],
+            });
+            
+            // Ensure the plan directory exists
+            const planDir = path.dirname(planPath);
+            await fs.ensureDir(planDir);
+            
+            // Write the generated template
+            await fs.writeFile(planPath, filledTemplate, 'utf-8');
+            
+            return `Implementation plan template generated!\n\n` +
+              `A template has been created at:\n${planPath}\n\n` +
+              `📝 Next steps:\n` +
+              `1. Review and complete the generated plan template\n` +
+              `2. Replace all <!-- TODO --> sections with your actual implementation details\n` +
+              `3. Run claim_task again to submit your completed plan for PM review\n\n` +
+              `The plan should include:\n` +
+              `- Your implementation approach and algorithm choices\n` +
+              `- Detailed implementation steps\n` +
+              `- Potential risks and mitigation strategies\n` +
+              `- Any alternative approaches you considered`;
           }
           
           // Plan exists - check if already approved
@@ -138,8 +163,10 @@ export function registerClaimTask(
               pmResponse = await Promise.race([responsePromise, timeoutPromise]);
             } catch (error) {
               if (error instanceof Error && error.message === 'PM response timeout') {
-                pmResponse = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
-                console.error('[Squabble] PM plan review timed out');
+                // DO NOT remove event listeners - we want to continue capturing PM activity
+                // The PM might still be working and we need the audit trail
+                pmResponse = 'PM response timed out but session continues. The PM is still working - check the activity log for ongoing updates.';
+                console.error('[Squabble] PM plan review timed out but logging continues');
               } else {
                 throw error;
               }

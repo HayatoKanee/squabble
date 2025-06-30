@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { Task, Decision, PMSession, ReviewRequest, PMFeedback } from '../types.js';
+import { Task, Decision, PMSession } from '../types.js';
 
 export class WorkspaceManager {
   private workspaceRoot: string;
@@ -127,59 +127,8 @@ export class WorkspaceManager {
     }
   }
 
-  // Review Management
-  async saveReviewRequest(review: ReviewRequest): Promise<void> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const reviewPath = path.join(
-      this.getReviewsPath(),
-      `${timestamp}-request.json`
-    );
-    await fs.writeFile(
-      reviewPath,
-      JSON.stringify(review, null, 2),
-      'utf-8'
-    );
-  }
-
-  async savePMFeedback(feedback: PMFeedback): Promise<void> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const feedbackPath = path.join(
-      this.getReviewsPath(),
-      `${timestamp}-feedback.json`
-    );
-    await fs.writeFile(
-      feedbackPath,
-      JSON.stringify(feedback, null, 2),
-      'utf-8'
-    );
-  }
-
-  async getLatestReview(): Promise<{ request: ReviewRequest; feedback?: PMFeedback } | null> {
-    try {
-      const reviewFiles = await fs.readdir(this.getReviewsPath());
-      const requestFiles = reviewFiles.filter(f => f.endsWith('-request.json')).sort();
-      
-      if (requestFiles.length === 0) return null;
-      
-      const latestRequest = requestFiles[requestFiles.length - 1];
-      const request = JSON.parse(
-        await fs.readFile(path.join(this.getReviewsPath(), latestRequest), 'utf-8')
-      );
-      
-      // Look for corresponding feedback
-      const feedbackFile = latestRequest.replace('-request.json', '-feedback.json');
-      let feedback;
-      if (reviewFiles.includes(feedbackFile)) {
-        feedback = JSON.parse(
-          await fs.readFile(path.join(this.getReviewsPath(), feedbackFile), 'utf-8')
-        );
-      }
-      
-      return { request, feedback };
-    } catch (error) {
-      return null;
-    }
-  }
+  // Review directory path for new review.log files
+  // Keeping the getReviewsPath for directory structure
 
   // Context Management
   async saveContext(key: string, data: any): Promise<void> {

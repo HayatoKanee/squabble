@@ -35,29 +35,8 @@ export interface PMSession {
   lastActive: Date;
 }
 
-// New types for sequential workflow
-export interface ReviewRequest {
-  taskId: string;
-  summary: string;
-  filesChanged: string[];
-  gitDiff?: string;
-  questions?: string[];
-  timestamp: Date;
-  pmSessionId: string;  // Track which PM session handled this
-}
-
-export interface PMFeedback {
-  approved: boolean;
-  feedback: string;
-  requiredChanges?: string[];
-  taskModifications?: TaskModification[];
-  sessionId: string;  // Which PM session gave this feedback
-}
-
 export interface WorkflowContext {
   currentTaskId?: string;
   pmSession?: PMSession;
-  lastReview?: ReviewRequest;
-  pmFeedback?: PMFeedback;
   userClarifications?: string[];
 }
