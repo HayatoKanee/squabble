@@ -24,6 +24,7 @@ export class WorkspaceManager {
       'workspace/tasks',
       'workspace/reviews',  // For review requests/responses
       'workspace/context',
+      'workspace/plans',    // For implementation plans
       'archive'
     ];
 

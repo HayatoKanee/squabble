@@ -8,6 +8,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'critical';
   dependencies: string[];
   blockedBy?: string;
+  requiresPlan: boolean;  // If true, engineer must submit implementation plan before claiming
   modificationHistory: TaskModification[];
 }
 

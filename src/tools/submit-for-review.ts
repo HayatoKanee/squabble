@@ -4,6 +4,7 @@ import { TaskManager } from '../tasks/task-manager.js';
 import { WorkspaceManager } from '../workspace/manager.js';
 import { PMSessionManager } from '../pm/session-manager.js';
 import { ReviewFormatter } from '../pm/review-formatter.js';
+import { FileEventBroker } from '../streaming/file-event-broker.js';
 import { execa } from 'execa';
 
 const submitForReviewSchema = z.object({
@@ -27,6 +28,7 @@ export function registerSubmitForReview(
 ) {
   const pmSessionManager = new PMSessionManager(workspaceManager);
   const reviewFormatter = new ReviewFormatter();
+  const eventBroker = FileEventBroker.getInstance(workspaceManager);
   
   server.addTool({
     name: 'submit_for_review',
@@ -101,13 +103,49 @@ export function registerSubmitForReview(
         // Get current PM session
         const currentSession = await pmSessionManager.getCurrentSession();
         
-        // Consult PM (BLOCKING)
+        // Start streaming PM session (BLOCKING)
         console.error('[Squabble] Submitting to PM for review... This may take a moment.');
-        const { response: pmResponse, sessionId } = await pmSessionManager.consultPM(
+        const sessionId = await eventBroker.startPMSession(
           reviewPrompt,
           PMSessionManager.createPMSystemPrompt(),
-          currentSession?.currentSessionId
+          currentSession?.currentSessionId,
+          {
+            engineerId: 'current-engineer',
+            taskId: taskId
+          }
         );
+        
+        // Collect PM response from streaming session
+        let pmResponse = '';
+        const responsePromise = new Promise<string>((resolve) => {
+          const messageHandler = (event: any) => {
+            if (event.sessionId === sessionId) {
+              if (event.type === 'pm_message' && event.message) {
+                pmResponse += event.message;
+              } else if (event.type === 'session_end') {
+                eventBroker.off('pm-event', messageHandler);
+                resolve(pmResponse);
+              }
+            }
+          };
+          eventBroker.on('pm-event', messageHandler);
+        });
+        
+        // Wait for the response to complete with timeout
+        const timeoutPromise = new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('PM response timeout')), 180000) // 3 minute timeout for reviews
+        );
+        
+        try {
+          pmResponse = await Promise.race([responsePromise, timeoutPromise]);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'PM response timeout') {
+            pmResponse = 'PM response timed out. The streaming session may still be running. Check the PM activity log for details.';
+            console.error('[Squabble] PM review timed out');
+          } else {
+            throw error;
+          }
+        }
         
         // Update review request with session ID
         reviewRequest.pmSessionId = sessionId;

@@ -114,10 +114,15 @@ export function registerGetNextTask(
         if (nextTask.description) {
           result += `Description: ${nextTask.description}\n`;
         }
+        if (nextTask.requiresPlan) {
+          result += `⚠️ Requires Plan: Yes - You must submit an implementation plan before claiming\n`;
+        }
         if (dependencies.length > 0) {
           result += `Dependencies: ${dependencies.join(', ')}\n`;
         }
-        result += `\nTip: Use claim_task to mark this task as in-progress`;
+        result += `\nTip: ${nextTask.requiresPlan 
+          ? 'Create your implementation plan at .squabble/workspace/plans/' + nextTask.id + '/implementation-plan.md then use claim_task' 
+          : 'Use claim_task to mark this task as in-progress'}`;
         
         if (dependentTasks.length > 0) {
           result += `\nImpact: Completing this will unblock ${dependentTasks.length} other task(s)`;

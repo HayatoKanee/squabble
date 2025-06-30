@@ -54,6 +54,9 @@ export class TaskManager {
       status: 'pending',
       priority: mod.details.priority || 'medium',
       dependencies: mod.details.dependencies || [],
+      requiresPlan: mod.details.requiresPlan !== undefined 
+        ? mod.details.requiresPlan 
+        : this.shouldRequirePlan(mod.details.priority),  // Default based on priority
       modificationHistory: [{
         ...mod,
         timestamp: new Date()
@@ -61,6 +64,11 @@ export class TaskManager {
     };
 
     return [...tasks, newTask];
+  }
+
+  private shouldRequirePlan(priority?: string): boolean {
+    // Simple heuristic for MVP: high and critical priority tasks require plans by default
+    return priority === 'high' || priority === 'critical';
   }
 
   private async getNextTaskId(): Promise<string> {
@@ -112,6 +120,9 @@ export class TaskManager {
           title: mod.details.newTitle || task.title,
           priority: mod.details.newPriority || task.priority,
           status: mod.details.status || task.status,
+          requiresPlan: mod.details.requiresPlan !== undefined 
+            ? mod.details.requiresPlan 
+            : task.requiresPlan,
           modificationHistory: [...task.modificationHistory, mod]
         };
       }
