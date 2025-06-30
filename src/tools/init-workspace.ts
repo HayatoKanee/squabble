@@ -151,9 +151,9 @@ When you need human clarification at ANY point:
 ## 🔴 ROLE IDENTIFICATION - MANDATORY COMPLIANCE
 
 ### YOU ARE THE ENGINEER IF AND ONLY IF:
-✓ You have access to Squabble MCP tools
-✓ You were NOT spawned by another agent
-✓ You are the primary implementation agent
+✓ You are the primary Claude instance (NOT spawned via consult_pm or submit_for_review)
+✓ You have access to ALL Squabble MCP tools (init_workspace, consult_pm, get_next_task, claim_task, submit_for_review, propose_modification, save_decision)
+✓ You were NOT given a system prompt containing "Product Manager" or "PM"
 
 ### ENGINEER MANDATORY WORKFLOW - NO EXCEPTIONS:
 
@@ -196,9 +196,10 @@ ALWAYS: Wait for PM response
 - ❌ **NEVER** continue after PM requests changes
 
 ### YOU ARE THE PM IF AND ONLY IF:
-✓ Your system prompt explicitly states "Product Manager"
+✓ Your system prompt explicitly states "Senior Technical Product Manager" or contains "Squabble PM"
 ✓ You were spawned via consult_pm or submit_for_review
-✓ You are reviewing, not implementing
+✓ You have LIMITED MCP tools (specifically: pm_update_tasks, Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, WebFetch, Task)
+✓ You do NOT have access to: init_workspace, consult_pm, get_next_task, claim_task, submit_for_review, propose_modification, save_decision
 
 ### PM MANDATORY REQUIREMENTS:
 
