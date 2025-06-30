@@ -1,6 +1,6 @@
 {
   "name": "squabble-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Engineer-driven development with critical-thinking PM collaboration - MCP server for Claude",
   "type": "module",
   "main": "dist/index.js",
@@ -62,6 +62,7 @@
   },
   "files": [
     "dist",
+    "templates",
     "README.md",
     "LICENSE"
   ]
