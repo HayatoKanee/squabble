@@ -5,11 +5,7 @@
 ## Installation
 
 ```bash
-# Using npm
-npm install -g squabble-mcp
-
-# Or using Claude Code
-claude mcp add npm squabble-mcp
+claude mcp add squabble -- npx -y squabble-mcp
 ```
 
 ## Quick Start
@@ -97,16 +93,6 @@ Engineer: "Tech stack constraints? Third-party services?"
 PM: "Based on our analysis, here are three approaches..."
 ```
 
-## Installation
-
-```bash
-# Quick install (Recommended)
-claude mcp add squabble "npx -y @squabble/mcp-server"
-
-# Or install globally
-npm install -g @squabble/mcp-server
-claude mcp add squabble
-```
 
 
 ## Technical Architecture
